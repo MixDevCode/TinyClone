@@ -1,6 +1,8 @@
 const get_mode_detail = require('./get_mode_detail')
 const precalc = require('./PP_Calculation/precalc')
 const std_pp_calc = require('./PP_Calculation/std_pp_calc');
+const { Beatmap, Calculator } = require('rosu-pp')
+const calc = require('ojsama')
 
 module.exports = async ({best, mode}) => {
     try {
@@ -11,17 +13,18 @@ module.exports = async ({best, mode}) => {
         let mod_avg = [];
         for (let i = 0; i < 50; i++) {
             let parser, map_info;
+            parser = await precalc({beatmap_id: best[i].beatmap_id})
+            if (parser.nline == 1) {
+                calc_count--
+                continue
+            }
+            let map = new Beatmap({path: "./beatmap-cache/"+ parser.beatmapId +"_rosu.osu"});
             if (modenum == 0) {
-                parser = await precalc({beatmap_id: best[i].beatmap_id})
-                if (parser.nline == 1) {
-                    calc_count--
-                    continue
-                }
                 map_info = std_pp_calc({parser: parser, mod_num: best[i].mod_num, mode: 'acc'})
                 // Calc skill
-                let star_skill = map_info.star.total
-                let aim_skill = (map_info.star.aim * (Math.pow(best[i].cs, 0.1) / Math.pow(4, 0.1)))*2
-                let speed_skill = (map_info.star.speed * (Math.pow(best[i].bpm, 0.09) / Math.pow(180, 0.09)) * (Math.pow(best[i].ar, 0.1) / Math.pow(6, 0.1)))*2
+                let star_skill = map_info.pp.difficulty.stars
+                let aim_skill = (map_info.pp.difficulty.aim * (Math.pow(best[i].cs, 0.1) / Math.pow(4, 0.1)))*2
+                let speed_skill = (map_info.pp.difficulty.speed * (Math.pow(best[i].bpm, 0.09) / Math.pow(180, 0.09)) * (Math.pow(best[i].ar, 0.1) / Math.pow(6, 0.1)))*2
                 let unbalance_limit = (Math.abs(aim_skill - speed_skill)) > (Math.pow(5, Math.log(aim_skill + speed_skill) / Math.log(1.7))/2940)
                 aim_avg += aim_skill
                 speed_avg += speed_skill
@@ -40,27 +43,56 @@ module.exports = async ({best, mode}) => {
                 best[i].addScoreSkill({acc_skill: acc_skill, speed_skill: speed_skill,
                                         aim_skill: aim_skill, star_skill: star_skill})
             } else {
-                star_avg += best[i].star
                 if (modenum == 1) {
-                    let speed_skill = Math.pow(best[i].star/1.1, Math.log(best[i].bpm)/Math.log(best[i].star*20))
-                    let acc_skill = Math.pow(best[i].star, (Math.pow(best[i].acc, 3)/Math.pow(100, 3)) * 1.05) * (Math.pow(best[i].od, 0.02) / Math.pow(6, 0.02)) * (Math.pow(best[i].hp, 0.02) / (Math.pow(5, 0.02)))
+                    let score = {
+                        mods: best[i].mod_num,
+                        mode: 1
+                    };
+                    let calculator = new Calculator(score);
+                    let calc = calculator.acc(parseFloat(best[i].acc))
+                        .performance(map);
+                    let mapCalc = calculator.mapAttributes(map);
+                    let speed_skill = Math.pow(calc.difficulty.stars/1.1, Math.log(mapCalc.bpm)/Math.log(calc.difficulty.stars*20))
+                    let acc_skill = Math.pow(calc.difficulty.stars, (Math.pow(best[i].acc, 3)/Math.pow(100, 3)) * 1.05) * (Math.pow(mapCalc.od, 0.02) / Math.pow(6, 0.02)) * (Math.pow(mapCalc.hp, 0.02) / (Math.pow(5, 0.02)))
                     speed_avg += speed_skill
                     if (acc_skill !== Infinity) acc_avg += acc_skill
-                    best[i].addScoreSkill({acc_skill: acc_skill, speed_skill: speed_skill, star_skill: best[i].star});
+                    star_avg += calc.difficulty.stars
+                    best[i].addScoreSkill({acc_skill: acc_skill, speed_skill: speed_skill, star_skill: calc.difficulty.stars});
                 } else if (modenum == 2) {
-                    let aim_skill = Math.pow(best[i].star, Math.log(best[i].bpm)/Math.log(best[i].star*20)) * (Math.pow(best[i].cs, 0.1) / Math.pow(4, 0.1))
-                    let acc_skill = Math.pow(best[i].star, (Math.pow(best[i].acc, 3.5)/Math.pow(100, 3.5)) * 1.1) * (Math.pow(best[i].od, 0.02) / Math.pow(6, 0.02)) * (Math.pow(best[i].hp, 0.02) / (Math.pow(5, 0.02)))
+                    let score = {
+                        mods: best[i].mod_num,
+                        mode: 2
+                    };
+                    let calculator = new Calculator(score);
+                    let calc = calculator.acc(parseFloat(best[i].acc))
+                        .performance(map);
+                    let mapCalc = calculator.mapAttributes(map);
+                    let aim_skill = Math.pow(calc.difficulty.stars, Math.log(mapCalc.bpm)/Math.log(calc.difficulty.stars*20)) * (Math.pow(mapCalc.cs, 0.1) / Math.pow(4, 0.1))
+                    let acc_skill = Math.pow(calc.difficulty.stars, (Math.pow(best[i].acc, 3.5)/Math.pow(100, 3.5)) * 1.1) * (Math.pow(mapCalc.od, 0.02) / Math.pow(6, 0.02)) * (Math.pow(mapCalc.hp, 0.02) / (Math.pow(5, 0.02)))
                     aim_avg += aim_skill
                     if (acc_skill !== Infinity) acc_avg += acc_skill
-                    best[i].addScoreSkill({acc_skill: acc_skill, aim_skill: aim_skill, star_skill: best[i].star});
+                    star_avg += calc.difficulty.stars
+                    best[i].addScoreSkill({acc_skill: acc_skill, aim_skill: aim_skill, star_skill: calc.difficulty.stars});
                 } else if (modenum == 3) {
-                    let aim_skill = Math.pow(best[i].star/1.1, Math.log(best[i].bpm)/Math.log(best[i].star*20))
-                    let acc_skill = Math.pow(best[i].star, (Math.pow(best[i].acc, 3)/Math.pow(100, 3)) * 1.075) * (Math.pow(best[i].od, 0.02) / Math.pow(6, 0.02)) * (Math.pow(best[i].hp, 0.02) / (Math.pow(5, 0.02)))
-                    let speed_skill = Math.pow(best[i].star, 1.1 * Math.pow(best[i].bpm/250, 0.4) * (Math.log(best[i].circle + best[i].slider)/Math.log(best[i].star*900)) * (Math.pow(best[i].od, 0.4) / Math.pow(8, 0.4)) * (Math.pow(best[i].hp, 0.2) / Math.pow(7.5, 0.2)) * Math.pow(best[i].cs/4, 0.1))
+                    let score = {
+                        mods: best[i].mod_num,
+                        mode: 3
+                    };
+                    let calculator = new Calculator(score);
+                    let calc = calculator.acc(parseFloat(best[i].acc))
+                        .nGeki(best[i].count_geki)
+                        .nKatu(best[i].count_katu)
+                        .performance(map);
+                    let mapCalc = calculator.mapAttributes(map);
+                    
+                    let aim_skill = Math.pow(calc.difficulty.stars/1.1, Math.log(mapCalc.bpm)/Math.log(calc.difficulty.stars*20))
+                    let acc_skill = Math.pow(calc.difficulty.stars, (Math.pow(best[i].acc, 3)/Math.pow(100, 3)) * 1.075) * (Math.pow(mapCalc.od, 0.02) / Math.pow(6, 0.02)) * (Math.pow(mapCalc.hp, 0.02) / (Math.pow(5, 0.02)))
+                    let speed_skill = Math.pow(calc.difficulty.stars, 1.1 * Math.pow(mapCalc.bpm/250, 0.4) * (Math.log(best[i].circle + best[i].slider)/Math.log(calc.difficulty.stars*900)) * (Math.pow(mapCalc.od, 0.4) / Math.pow(8, 0.4)) * (Math.pow(mapCalc.hp, 0.2) / Math.pow(7.5, 0.2)) * Math.pow(mapCalc.cs/4, 0.1))
                     aim_avg += aim_skill
                     speed_avg += speed_skill
                     if (acc_skill !== Infinity) acc_avg += acc_skill
-                    best[i].addScoreSkill({acc_skill: acc_skill, aim_skill: aim_skill, speed_skill: speed_skill, star_skill: best[i].star})
+                    star_avg += calc.difficulty.stars
+                    best[i].addScoreSkill({acc_skill: acc_skill, aim_skill: aim_skill, speed_skill: speed_skill, star_skill: calc.difficulty.stars})
                 }
             }
             bpm_avg += best[i].bpm

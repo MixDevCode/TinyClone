@@ -3,12 +3,12 @@ const RippleAPI = require('./RippleAPI')
 const { Score } = require('../../../Classes/osu')
 const get_mode_detail = require('../get_mode_detail')
 
-module.exports = async ({name, mode, beatmap_id, limit}) => {
+module.exports = async ({ name, mode, beatmap_id, limit }) => {
     try {
-        let {modenum, a_mode, check_type} = get_mode_detail({mode: mode})
+        let { modenum, a_mode, check_type } = get_mode_detail({ mode: mode })
         let scores = []
         if (check_type == 'bancho') {
-            let score = await BanchoAPI({ver: 1, endpoint: 'get_scores', param: {u: name, b: beatmap_id, limit: limit, m: modenum}})
+            let score = await BanchoAPI({ ver: 1, endpoint: 'get_scores', param: { u: name, b: beatmap_id, limit: limit, m: modenum } })
             for (let i = 0; i < score.length; i++) {
                 let count_300 = Number(score[i].count300)
                 let count_100 = Number(score[i].count100)
@@ -30,11 +30,13 @@ module.exports = async ({name, mode, beatmap_id, limit}) => {
                     acc = Number((50 * count_50 + 100 * count_100 + 200 * count_katu + 300 * (count_300 + count_geki)) / (300 * (count_miss + count_50 + count_100 + count_katu + count_300 + count_geki)) * 100)
                     accdetail = `[ ${count_geki} • ${count_300} • ${count_katu} • ${count_100} • ${count_50} • ${count_miss} ]`
                 }
-                scores[i] = new Score({user_id: score[i].user_id, beatmap_id: beatmap_id, count_300: count_300,
-                                    count_100: count_100, count_50: count_50, count_miss: count_miss, count_geki: count_geki,
-                                    count_katu: count_katu, combo: score[i].maxcombo, mod_num: score[i].enabled_mods,
-                                    perfect: score[i].perfect, date: score[i].date, rank: score[i].rank, pp: score[i].pp,
-                                    score: score[i].score, acc: acc, acc_detail: accdetail, username: score[i].username})
+                scores[i] = new Score({
+                    user_id: score[i].user_id, beatmap_id: beatmap_id, count_300: count_300,
+                    count_100: count_100, count_50: count_50, count_miss: count_miss, count_geki: count_geki,
+                    count_katu: count_katu, combo: score[i].maxcombo, mod_num: score[i].enabled_mods,
+                    perfect: score[i].perfect, date: score[i].date, rank: score[i].rank, pp: score[i].pp,
+                    score: score[i].score, acc: acc, acc_detail: accdetail, username: score[i].username
+                })
             }
         }
         return scores

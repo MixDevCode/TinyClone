@@ -1,13 +1,13 @@
 const get_mode_detail = require('./get_mode_detail')
 
-module.exports = ({mod_num, mode, time_total,time_drain,bpm,cs,ar,od,hp}) => {
-    let {modenum} = get_mode_detail({mode})
+module.exports = ({ mod_num, mode, time_total, time_drain, bpm, cs, ar, od, hp }) => {
+    let { modenum } = get_mode_detail({ mode })
     function EZ() {
-        if (modenum !== 3) cs /= 2; 
+        if (modenum !== 3) cs /= 2;
         ar /= 2; od /= 2; hp /= 2;
     }
     function HR() {
-        if (modenum !== 3) cs *= 1.3; 
+        if (modenum !== 3) cs *= 1.3;
         ar *= 1.4; od *= 1.4; hp *= 1.4;
         ar = (ar > 10) ? 10 : ar
         od = (od > 10) ? 10 : od
@@ -41,12 +41,12 @@ module.exports = ({mod_num, mode, time_total,time_drain,bpm,cs,ar,od,hp}) => {
             od = (49.5 - odms) / 3
         }
     }
-    if ((mod_num & 2) == 2)                                 EZ();
-    if ((mod_num & 16) == 16)                               HR();
-    if ((mod_num & 64) == 64 || (mod_num & 512) == 512)     DT();
-    if ((mod_num & 256) == 256)                             HT();
+    if ((mod_num & 2) == 2) EZ();
+    if ((mod_num & 16) == 16) HR();
+    if ((mod_num & 64) == 64 || (mod_num & 512) == 512) DT();
+    if ((mod_num & 256) == 256) HT();
     ar = (ar > 11) ? 11 : ar
     od = (od > 11) ? 11 : od
     hp = (hp > 11) ? 11 : hp
-    return {bpm: bpm, cs: cs, ar: ar, od: od, hp: hp, time_total: time_total, time_drain: time_drain}
+    return { bpm: bpm, cs: cs, ar: ar, od: od, hp: hp, time_total: time_total, time_drain: time_drain }
 }

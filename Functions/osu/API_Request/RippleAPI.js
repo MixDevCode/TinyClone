@@ -2,7 +2,7 @@ const request = require('superagent')
 const get_mode_detail = require('../get_mode_detail')
 
 function websiteKey(mode) {
-    let type = get_mode_detail({mode: mode}).check_type
+    let type = get_mode_detail({ mode: mode }).check_type
     let apiKey = {
         'Akatsuki': process.env.AKATSUKI_KEY,
         'Ripple': process.env.RIPPLE_KEY,
@@ -13,11 +13,11 @@ function websiteKey(mode) {
 }
 
 function websiteBaseURL(mode) {
-    let url = get_mode_detail({mode: mode}).link
+    let url = get_mode_detail({ mode: mode }).link
     return `https://${url}/api`
 }
 
-async function apiCall({endpoint, mode, options}) {
+async function apiCall({ endpoint, mode, options }) {
     let apiKey = websiteKey(mode)
     options.k = apiKey;
     let baseURL = websiteBaseURL(mode)

@@ -3,10 +3,10 @@ class Lang {
         this.avatar = {
             "text": lang_file["avatar"]?.text
         },
-        this.bug_and_suggest = {
-            "bug": lang_file["bug_and_suggest"]?.bug,
-            "suggestion": lang_file["bug_and_suggest"]?.suggestion
-        }
+            this.bug_and_suggest = {
+                "bug": lang_file["bug_and_suggest"]?.bug,
+                "suggestion": lang_file["bug_and_suggest"]?.suggestion
+            }
         this.osu = {
             "profile": {
                 "desc1": lang_file["osu"]?.profile?.desc1,
@@ -41,4 +41,4 @@ class Lang {
     }
 }
 
-module.exports = {Lang}
+module.exports = { Lang }

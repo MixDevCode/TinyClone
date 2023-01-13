@@ -6,37 +6,57 @@ const fx = require("./../Functions/fx_handler")
 const getLocalText = require('../Lang/lang_handler')
 const { config } = require("../config")
 const { get } = require("superagent")
+const moment = require("moment")
+require("moment-duration-format");
+const { promisify } = require('util')
+const fastFolderSize = require('fast-folder-size')
+const si = require('systeminformation');
+const { Beatmap, Calculator } = require('rosu-pp');
 
 let server_data = {}
 let db;
 
+function secondsToDhms(seconds) {
+    seconds = Number(seconds);
+    var d = Math.floor(seconds / (3600*24));
+    var h = Math.floor(seconds % (3600*24) / 3600);
+    var m = Math.floor(seconds % 3600 / 60);
+    var s = Math.floor(seconds % 60);
+    
+    var dDisplay = d > 0 ? d + (d == 1 ? "d, " : "d ") : "";
+    var hDisplay = h > 0 ? h + (h == 1 ? "h, " : "h ") : "";
+    var mDisplay = m > 0 ? m + (m == 1 ? "m, " : "m ") : "";
+    var sDisplay = s > 0 ? s + (s == 1 ? "s" : "s") : "";
+    return dDisplay + hDisplay + mDisplay + sDisplay;
+}
+
 /** 
  * @param {{message: Message}} 
  */
-async function avatar({message, embed_color, lang}) {
+async function avatar({ message, embed_color, lang }) {
     try {
-        let localText = getLocalText({lang: lang}).avatar
+        let localText = getLocalText({ lang: lang }).avatar
         let msg = message.content.toLowerCase()
-        let suffixes = fx.general.check_suffix({check_msg: msg, suffix: [{"suffix": undefined, "v_count": 0}]})
-        let user = await fx.general.get_discord_user({message: message, name: suffixes.check})
+        let suffixes = fx.general.check_suffix({ check_msg: msg, suffix: [{ "suffix": undefined, "v_count": 0 }] })
+        let user = await fx.general.get_discord_user({ message: message, name: suffixes.check })
         if (!user) {
-            message.channel.send(error_report({type: 'custom', err_message: "User not found!"}))
+            message.channel.send(error_report({ type: 'custom', err_message: "User not found!" }))
             return;
         }
         const embed = new MessageEmbed()
-        .setAuthor(localText.text.replace('{username}', user.username))
-        .setColor(embed_color)
-        .setImage(user.displayAvatarURL({size: 2048, format: "png", dynamic: true}));
-        message.channel.send({embed})
+            .setAuthor({ name: localText.text.replace('{username}', user.username) })
+            .setColor(embed_color)
+            .setImage(user.displayAvatarURL({ size: 2048, format: "png", dynamic: true }));
+        message.channel.send({ embeds: [embed] })
     } catch (err) {
-        message.channel.send(error_report({type: 'normal', err_message: err.stack.toString()}))
+        message.channel.send(error_report({ type: 'normal', err_message: err.stack.toString() }))
     }
 }
 
 /** 
  * @param {{message: Message}} 
  */
-async function ping({message}) {
+async function ping({ message }) {
     try {
         let msg = message.content.toLowerCase();
         let timenow = Date.now()
@@ -56,16 +76,16 @@ async function ping({message}) {
         edit_msg.edit(`Discord respond! **${ping}ms**                                                         
 Good   ${visual}   Bad`)
     } catch (error) {
-        message.channel.send(error_report({type: 'normal', err_message: err.stack.toString()}))
+        message.channel.send(error_report({ type: 'normal', err_message: err.stack.toString() }))
     }
 }
 
 /** 
  * @param {{message: Message}} 
  */
-function checkperm({message, bot_ver}) {
+function checkperm({ message, bot_ver }) {
     try {
-        let embedcolor = (message.guild == null ? "#7f7fff": message.guild.me.displayColor)
+        let embedcolor = (message.guild == null ? "#7f7fff" : message.guild.me.displayColor)
         let compatibility = []
         let permissions = ['SEND_MESSAGES', 'ATTACH_FILES', 'ADD_REACTIONS', 'EMBED_LINKS', 'USE_EXTERNAL_EMOJIS']
         for (let i in permissions) {
@@ -73,15 +93,15 @@ function checkperm({message, bot_ver}) {
             else compatibility.push('❌');
         }
         const embed = new MessageEmbed()
-        .setAuthor(`Permissions for Tiny Bot ${bot_ver} in ${message.guild.name}`)
-        .setThumbnail(message.guild.iconURL())
-        .setColor(embedcolor)
-        .setDescription(`Send Message: ${compatibility[0]}
+            .setAuthor({ name: `Permissions for Tiny Bot ${bot_ver} in ${message.guild.name}` })
+            .setThumbnail(message.guild.iconURL())
+            .setColor(embedcolor)
+            .setDescription(`Send Message: ${compatibility[0]}
 Attach Files: ${compatibility[1]}
 Add Reactions: ${compatibility[2]}
 Embed Links: ${compatibility[3]}
 Use External Emojis: ${compatibility[4]}`);
-        message.channel.send({embed})
+        message.channel.send({ embeds: [embed] })
     } catch (error) {
         message.channel.send(String(error))
     }
@@ -90,8 +110,8 @@ Use External Emojis: ${compatibility[4]}`);
 /** 
  * @param {{message: Message}} 
  */
-function bug_and_suggest({message, embed_color, type, lang}) {
-    let msg = fx.general.check_suffix({check_msg: message.content, suffix: [{"suffix": undefined, "v_count": 0}]})
+function bug_and_suggest({ message, embed_color, type, lang }) {
+    let msg = fx.general.check_suffix({ check_msg: message.content, suffix: [{ "suffix": undefined, "v_count": 0 }] })
     if (msg.check?.replace(" ", "") == "") {
         message.channel.send("You need to type a suggestion/bug report!")
         return
@@ -99,26 +119,29 @@ function bug_and_suggest({message, embed_color, type, lang}) {
     if (process.env.REPORT_BAN_GUILD.split(",").includes(message.guild.id)) {
         message.channel.send("Your guild has been banned from making any more report. If you think the ban is wrong, please visit the support guild.")
     }
-    process.send({send_type: 'all', cmd: 'bug_and_suggest', 
-                value: {
-                    channel_id: message.channel.id, msg: msg.check, type: type,
-                    user: message.author, embed_color: embed_color, 
-                    avatarURL: message.author.displayAvatarURL({format: 'jpg', size: 128}), lang: lang}})
+    process.send({
+        send_type: 'all', cmd: 'bug_and_suggest',
+        value: {
+            channel_id: message.channel.id, msg: msg.check, type: type,
+            user: message.author, embed_color: embed_color,
+            avatarURL: message.author.displayAvatarURL({ format: 'jpg', size: 128 }), lang: lang
+        }
+    })
 }
 
-async function childProc_bug_and_suggest({message, DiscordCL = new Client()}) {
-    let localText = getLocalText({lang: message.lang}).bug_and_suggest
-    let channel_id  =    (message.type == 'bug') ? '891551230034341899'  : '891551212464394260'
-    let text =           (message.type == 'bug') ? localText.bug         : localText.suggestion
-    let report_text =    (message.type == 'bug') ? 'Bug'                 : 'Suggestion'
+async function childProc_bug_and_suggest({ message, DiscordCL = new Client() }) {
+    let localText = getLocalText({ lang: message.lang }).bug_and_suggest
+    let channel_id = (message.type == 'bug') ? '998327295087476786' : '998327265756725340'
+    let text = (message.type == 'bug') ? localText.bug : localText.suggestion
+    let report_text = (message.type == 'bug') ? 'Bug' : 'Suggestion'
     let channel = DiscordCL.channels.cache.get(channel_id)
     if (channel) {
-        const embed = new MessageEmbed().setAuthor(`Username: ${message.user.username} (${message.user.id})`, message.avatarURL)
-        .setColor(message.embed_color)
-        .setDescription(`
+        const embed = new MessageEmbed().setAuthor({ name: `Username: ${message.user.username} (${message.user.id})`, iconURL: message.avatarURL })
+            .setColor(message.embed_color)
+            .setDescription(`
 Channel ID: **${message.channel_id}**
 ${text}: ${message.msg}`);
-        channel.send({embed})
+        channel.send({ embeds: [embed] })
         await (await DiscordCL.channels.fetch(message.channel_id)).send(`${report_text} has been reported`)
     }
 }
@@ -126,8 +149,8 @@ ${text}: ${message.msg}`);
 /** 
  * @param {{message: Message}} 
  */
-function changelog({message}) {
-    let embed_color = (message.guild == null ? "#7f7fff": message.guild.me.displayColor)
+function changelog({ message }) {
+    let embed_color = (message.guild == null ? "#7f7fff" : message.guild.me.displayColor)
     let changes = [`\`Performance and UI update:\`
 **[August 1st, 2021]**
 - Changed scores request from api v1 to api v2
@@ -150,63 +173,146 @@ function changelog({message}) {
 **[ IMPORTANT MESSEEAGE ] **
 The bot will not be receiving any more fixes and instead focusing on developing v6!
 `]
-    function load_page({page}) {
-        return changes[page-1]
+    function load_page({ page }) {
+        return changes[page - 1]
     }
     const embed = new MessageEmbed()
-    .setTitle(`Changelog for Tiny Bot ${config.bot_ver}`)
-    .setThumbnail(message.client.user.avatarURL({format: 'png', size: 512}))
-    .setColor(embed_color)
-    .setFooter(`{page}`)
-    fx.general.page_system({message: message, embed: embed, update_func: load_page,
-                            max_duration: Math.ceil(changes.length / 1) * 30000, max_page: Math.ceil(changes.length / 1)})
+        .setTitle(`Changelog for Tiny Bot ${config.bot_ver}`)
+        .setThumbnail(message.client.user.avatarURL({ format: 'png', size: 512 }))
+        .setColor(embed_color)
+        .setFooter({ text: `{page}` })
+    fx.general.page_system({
+        message: message, embed: embed, update_func: load_page,
+        max_duration: Math.ceil(changes.length / 1) * 30000, max_page: Math.ceil(changes.length / 1)
+    })
 }
 
 /** 
  * @param {{message: Message}} 
  */
-async function donate({message}) {
+async function donate({ message }) {
     try {
         const embed = new MessageEmbed()
-        .setDescription("Support the creator here: [donate](https://ko-fi.com/tienei)" +
-"\n\nIf you like the bot and want to support the development of it, please consider donating!" +
-"\n\nDonations will mostly go towards the bot development and will make the bot runs 5 times faster and better with more advanced features" +
-" and also helped prolong the life of TinyBot since currently the bot is hosted on a cloud server that costs money.")
-        .setThumbnail(message.client.user.avatarURL({format: 'png', size: 512}));
-        message.channel.send({embed})
-    } catch (err) {console.log(err)}
+            .setDescription("Support the creator here: [donate](https://ko-fi.com/tienei)" +
+                "\n\nIf you like the bot and want to support the development of it, please consider donating!" +
+                "\n\nDonations will mostly go towards the bot development and will make the bot runs 5 times faster and better with more advanced features" +
+                " and also helped prolong the life of TinyBot since currently the bot is hosted on a cloud server that costs money.")
+            .setThumbnail(message.client.user.avatarURL({ format: 'png', size: 512 }));
+        message.channel.send({ embeds: [embed] })
+    } catch (err) { console.log(err) }
 }
 
 /** 
  * @param {{message: Message}} 
  */
-async function bot_link({message}) {
+ async function botinfo({ message }) {
+    try {
+        let embedcolor = (message.guild == null ? "#7f7fff" : message.guild.me.displayColor)
+        const duration = moment.duration(message.client.uptime).format(" D [days], H [hrs], m [mins], s [secs]");
+        const fastFolderSizeAsync = promisify(fastFolderSize)
+        const bytes = await fastFolderSizeAsync('./beatmap-cache')
+        const megabytes = (Number(bytes) / 1024 / 1024).toFixed(2) + 'MB';
+        const embed = new MessageEmbed({
+            author: {
+                name: "TinyClone Bot Info",
+                icon_url: message.client.user.avatarURL({ format: 'png', size: 512 }),
+            },
+            fields: [
+                {
+                    name: "Bot Uptime",
+                    value: `${duration}`,
+                    inline: true,
+                },
+                {
+                    name: "Map Storage Size",
+                    value: `${megabytes}/500GB`,
+                    inline: true
+                }
+            ],
+            color: embedcolor
+        })
+        message.channel.send({ embeds: [embed] })
+    } catch (err) { console.log(err) }
+}
+
+/** 
+ * @param {{message: Message}} 
+ */
+ async function systeminfo({ message }) {
+    try {
+        let embedcolor = (message.guild == null ? "#7f7fff" : message.guild.me.displayColor)
+        const cpuTemp = await si.cpuTemperature();
+        const cpuInfo = await si.cpu();
+        const osInfo = await si.osInfo();
+        const batteryInfo = await si.battery();
+        const cpuLoad = await si.currentLoad();
+        let uptime = secondsToDhms(si.time().uptime);
+
+        const embed = new MessageEmbed({
+            author: {
+                name: "System Info"
+            },
+            fields: [
+                {
+                    name: "Operating System",
+                    value: `${osInfo.distro} ${osInfo.release} (${osInfo.codename})`,
+                },
+                {
+                    name: "System Uptime",
+                    value: `${uptime}`,
+                    inline: true,
+                },
+                {
+                    name: "CPU Temperature",
+                    value: `${cpuTemp.main}° C / ${cpuTemp.max}° C Max.`,
+                    inline: true,
+                },
+                {
+                    name: "CPU Information",
+                    value: `Model: ${cpuInfo.vendor} ${cpuInfo.brand}\nSpeed: ${cpuInfo.speed}Ghz current (${cpuInfo.speedMin}Ghz min / ${cpuInfo.speedMax}Ghz max)\nCores: ${cpuInfo.cores} (${cpuInfo.physicalCores} physical cores)\n\nCurrent CPU Load: ${cpuLoad.currentLoad.toFixed(2)} %`
+                },
+                {
+                    name: "Battery Information",
+                    value: `Percentage: ${batteryInfo.percent}%\nIs charging: ${batteryInfo.acConnected ? "Yes" : "No"}\n${batteryInfo.acConnected == false ? `Remaining time: ${batteryInfo.timeRemaining / 60} minutes` : ""}`,
+                }
+            ],
+            color: embedcolor
+        })
+        message.channel.send({ embeds: [embed] })
+    } catch (err) { console.log(err) }
+}
+
+/** 
+ * @param {{message: Message}} 
+ */
+async function bot_link({ message }) {
     try {
         const embed = new MessageEmbed()
-        .setDescription(`[Bot invitation link](https://discordapp.com/api/oauth2/authorize?client_id=470496878941962251&permissions=378944&scope=bot)
+            .setDescription(`[Bot invitation link](https://discord.com/api/oauth2/authorize?client_id=990773511893176380&permissions=378944&scope=bot)
 [Bot dev server](https://discord.gg/PPDU2Nrf3u)
+[Bot host server](https://discord.gg/mjQjaSzpye)
 [Bot donation link](https://ko-fi.com/tienei)`)
-        .setThumbnail(message.client.user.avatarURL({format: 'png', size: 512}));
-        message.channel.send({embed})
-    } catch (err) {console.log(err)}
+            .setThumbnail(message.client.user.avatarURL({ format: 'png', size: 512 }));
+        message.channel.send({ embeds: [embed] })
+    } catch (err) { console.log(err) }
 }
 
 /** 
  * @param {{message: Message}} 
  */
-function prefix({message, server_data}) {
+function prefix({ message, server_data }) {
     try {
         let msg = message.content.toLowerCase();
-        if (message.member.hasPermission("MANAGE_CHANNELS") == false) {
-            message.channel.send(error_report({type: 'custom', err_message: 'You need to have `MANAGE_CHANNELS` permission to set prefix'}))
+        if (!message.member.permissions.has('MANAGE_CHANNELS')) {
+            message.channel.send(error_report({ type: 'custom', err_message: 'You need to have `MANAGE_CHANNELS` permission to set prefix' }))
             return
         }
         let command = msg.split(' ')[0]
         if (fx.general.cmd_cooldown.cooldown[message.author.id] !== undefined && fx.general.cmd_cooldown.cooldown[message.author.id].indexOf(command) !== -1) {
-            message.channel.send(error_report({type: 'custom', err_message: 'You need to wait 30 seconds before using this again!'}))
+            message.channel.send(error_report({ type: 'custom', err_message: 'You need to wait 30 seconds before using this again!' }))
             return
         }
-        fx.general.cmd_cooldown.set({message: message, cmd: command, time: 0000})
+        fx.general.cmd_cooldown.set({ message: message, cmd: command, time: 0000 })
         let sync_db_value = {
             new_prefix: undefined,
             guild_id: message.guild.id,
@@ -214,7 +320,7 @@ function prefix({message, server_data}) {
         }
         let new_prefix = msg.split(' ')[1]
         if (new_prefix == undefined) {
-            message.channel.send(error_report({type: 'custom', err_message: "You need to specify what prefix the bot should be using"}))
+            message.channel.send(error_report({ type: 'custom', err_message: "You need to specify what prefix the bot should be using" }))
             return
         }
         sync_db_value.new_prefix = new_prefix
@@ -233,11 +339,11 @@ function prefix({message, server_data}) {
         if (Object.keys(server_data).length < 1) {
             server_data['a'] = 'a'
         }
-        process.send({send_type: "db", cmd: "prefix", value: sync_db_value})
+        process.send({ send_type: "db", cmd: "prefix", value: sync_db_value })
         return server_data
     } catch (error) {
-        message.channel.send(error_report({type: 'normal', err_message: error.stack.toString()}))
-        return null 
+        message.channel.send(error_report({ type: 'normal', err_message: error.stack.toString() }))
+        return null
     }
 }
 
@@ -245,14 +351,14 @@ let bot_command_help = []
 /** 
  * @param {{message: Message}} 
  */
-function help({message, prefix}) {
+function help({ message, prefix }) {
     try {
         let msg = message.content.toLowerCase();
         let command = msg.split(' ')[0]
-        let embedcolor = (message.guild == null ? "#7f7fff": message.guild.me.displayColor)
+        let embedcolor = (message.guild == null ? "#7f7fff" : message.guild.me.displayColor)
         function addhelp(helpcommand, fullcommand, description, option, example) {
-            let helptext = '```' + `{prefix}` + fullcommand + '```' + `\n${description}\n\n**---[Options]:**\n${option}\n\n**---[Example]:**\n` + `{prefix}`+ example
-            bot_command_help.push({command: helpcommand, helptext: helptext})
+            let helptext = '```' + `{prefix}` + fullcommand + '```' + `\n${description}\n\n**---[Options]:**\n${option}\n\n**---[Example]:**\n` + `{prefix}` + example
+            bot_command_help.push({ command: helpcommand, helptext: helptext })
         }
         if (bot_command_help.length < 1) {
             addhelp('avatar', 'avatar (user)', 'Sends the mentioned user\'s Discord avatar to the channel', 'user: The User you want to get the avatar from (Has to be @user)', 'avatar @Tienei#0000')
@@ -304,12 +410,12 @@ function help({message, prefix}) {
             addhelp('scores', '[scores|sc] (map link) (username)', 'Get player\'s play on a specific map', 'Map link: Just get a beatmap link\nusername: osu!username of the player (Space replaced with "_" or just use quotation mark ``"``)', 'scores https://osu.ppy.sh/b/1157868 Cookiezi')
             addhelp('donate', 'donate', 'Creator\'s donation link', '', 'donate')
         }
-        let generalhelp = '**[General]:** `avatar` `changelog` `help` `ping` `report` `suggestion` `invite` `server` `prefix`'
+        let generalhelp = '**[General]:** `avatar` `changelog` `help` `ping` `report` `suggestion` `invite` `server` `prefix` `botinfo`'
         let funhelp = '**[Fun]:** `hug` `cuddle` `slap` `kiss` `pat` `poke` `cry` `blush` `pout` `trivia`'
         let osuhelp = '**[osu!]:** `banchoping` `osu` `taiko` `ctb` `mania` `relax` `osutop` `taikotop` `ctbtop` `maniatop` `relaxtop` `osutrack` `untrack` `osutracklist` `map` `osuset` `osuavatar` `recent` `compare` `scores` `osucard` `taikocard` `ctbcard` `maniacard`'
         let text = ''
-        if (msg.substring(command.length+1) == '') {
-            text = `**[Donate]:** \`donate\`\n${generalhelp}\n${funhelp}\n${osuhelp}\n\nFor more detailed infomation, type **${prefix}help (command)**\nIf you forgot the prefix, remember: **<Ping the bot> check_prefix**\n\`Consider donating!:\` [donate](https://ko-fi.com/tienei)`
+        if (msg.substring(command.length + 1) == '') {
+            text = `**[Donate]:** \`donate\`\n${generalhelp}\n${funhelp}\n${osuhelp}\n\nFor more detailed infomation, type **${prefix}help (command)**\nIf you forgot the prefix, remember: <@${message.client.user.id}> **check_prefix**\n\`Consider donating!:\` [donate](https://ko-fi.com/tienei)`
         } else {
             let getcmd = msg.substring(command.length+1)
             if (bot_command_help.find(helpcmd => helpcmd.command).helptext == undefined) {
@@ -328,11 +434,11 @@ function help({message, prefix}) {
             }
         }
         const embed = new MessageEmbed()
-        .setAuthor(`Commands for Tiny Bot ${config.bot_ver}`)
-        .setColor(embedcolor)
-        .setThumbnail(message.client.user.avatarURL({format: 'png', size: 512}))
-        .setDescription(text);
-        message.channel.send({embed})
+            .setAuthor({ name: `Commands for Tiny Bot ${config.bot_ver}` })
+            .setColor(embedcolor)
+            .setThumbnail(message.client.user.avatarURL({ format: 'png', size: 512 }))
+            .setDescription(text);
+        message.channel.send({ embeds: [embed] })
     } catch (error) {
         message.channel.send(String(error))
     }
@@ -348,5 +454,7 @@ module.exports = {
     donate,
     bot_link,
     prefix,
-    help
+    help,
+    botinfo,
+    systeminfo
 }

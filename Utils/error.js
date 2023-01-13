@@ -1,4 +1,4 @@
-module.exports = ({type, err_message, parameters}) => {
+module.exports = ({ type, err_message, parameters }) => {
     try {
         let msg = ''
         if (type == 'normal') {
@@ -10,9 +10,9 @@ module.exports = ({type, err_message, parameters}) => {
                 dir_type = '\\'
             }
             let file = filename.split(dir_type)
-            file = `file: ${file[file.length-1].split(':')[0].replace(')', '')}`
+            file = `file: ${file[file.length - 1].split(':')[0].replace(')', '')}`
             let line = filename.split(':')
-            line = `(line: ${line[line.length-2].replace(')', '')}, char: ${line[line.length-1].replace(')', '')})`
+            line = `(line: ${line[line.length - 2].replace(')', '')}, char: ${line[line.length - 1].replace(')', '')})`
             msg = `\`Error\`: ${err_message}\n${file}, ${line}`
         } else if (type == 'custom') {
             msg = err_message
@@ -21,7 +21,7 @@ module.exports = ({type, err_message, parameters}) => {
                 for (let param of parameters) {
                     msg += `\`${param}\`, `
                 }
-                msg = msg.substring(0, msg.length-2) + `. Please re-check the inputted message.`
+                msg = msg.substring(0, msg.length - 2) + `. Please re-check the inputted message.`
             }
         }
         return msg

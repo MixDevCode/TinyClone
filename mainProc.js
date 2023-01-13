@@ -8,12 +8,12 @@ async function runProc() {
     let processes = []
     let osutrack_proc = fork('./track.js', [])
     for (let i = 0; i < process.env.PROCESS_COUNT; i++) {
-        processes[i] = fork('./botv5.js', [], {env: {...process.env, PROCESS_ID: i}})
+        processes[i] = fork('./botv5.js', [], { env: { ...process.env, PROCESS_ID: i } })
     }
 
     starting = false;
     // osutrack proc messages
-    
+
     osutrack_proc.on("message", (message) => {
         if (message.send_type == 'all') {
             for (let proc of processes) {
@@ -24,7 +24,7 @@ async function runProc() {
             processes[message.value.proc_id].send(message)
         }
     })
-    
+
     // Discord proc messages
     for (let child_proc of processes) {
         child_proc.on("message", (message) => {
@@ -51,8 +51,10 @@ async function runProc() {
                         for (let proc of processes) {
                             proc.off("message", handler)
                         }
-                        child_proc.send({send_type: 'returned', cmd: message.cmd, value: message.value, 
-                                        return_value: values})
+                        child_proc.send({
+                            send_type: 'returned', cmd: message.cmd, value: message.value,
+                            return_value: values
+                        })
                     }
                 }
                 for (let proc of processes) {
@@ -75,8 +77,8 @@ async function runProc() {
             if (!starting) {
                 starting = true;
                 console.log(`------------------------------------\n` +
-                            `Child Processes restarting!\n` + 
-                            `------------------------------------`)
+                    `Child Processes restarting!\n` +
+                    `------------------------------------`)
                 osutrack_proc.kill('SIGKILL')
                 for (let proc of processes) {
                     proc.kill('SIGKILL')

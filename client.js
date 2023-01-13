@@ -1,25 +1,47 @@
-const { Client, Intents } = require('discord.js-light');
-const TinyIntents = new Intents()
-TinyIntents.add('GUILDS', 'GUILD_EMOJIS', 'GUILD_INVITES', 'GUILD_MESSAGES','GUILD_MESSAGE_REACTIONS',
-                'DIRECT_MESSAGES','DIRECT_MESSAGE_REACTIONS')
+const Discord = require('discord.js-light');
 
-const bot = new Client({
-    cacheGuilds: true,
-    cacheChannels: true,
-    cacheOverwrites: false,
-    cacheRoles: true,
-    cacheEmojis: false,
-    cachePresences: false,
-    messageCacheMaxSize: 10, 
-    messageCacheLifetime: 60, 
-    messageSweepInterval: 120,
-    shardCount: Number(process.env.PROCESS_COUNT),
-    shards: Number(process.env.PROCESS_ID),
-    ws: {intents: TinyIntents}
+const bot = new Discord.Client({
+  makeCache: Discord.Options.cacheWithLimits({
+    ApplicationCommandManager: Infinity, // guild.commands
+    BaseGuildEmojiManager: Infinity, // guild.emojis
+    ChannelManager: Infinity, // client.channels
+    GuildChannelManager: Infinity, // guild.channels
+    GuildBanManager: Infinity, // guild.bans
+    GuildManager: Infinity, // client.guilds
+    GuildMemberManager: Infinity, // guild.members
+    MessageManager: Infinity, // channel.messages
+    PermissionOverwriteManager: Infinity, // channel.permissionOverwrites
+    RoleManager: Infinity, // guild.roles
+    UserManager: Infinity, // client.users
+  }),
+  intents: [
+    Discord.Intents.FLAGS.GUILDS,
+    "GUILD_MESSAGES",
+    "GUILDS",
+    "GUILD_EMOJIS_AND_STICKERS",
+    "GUILD_INVITES",
+    "DIRECT_MESSAGES",
+    "GUILD_MESSAGE_REACTIONS"
+  ],
+  ws: {
+    intents: [
+      Discord.Intents.FLAGS.GUILDS,
+      "GUILD_MESSAGES",
+      "GUILDS",
+      "GUILD_EMOJIS_AND_STICKERS",
+      "GUILD_INVITES",
+      "DIRECT_MESSAGES",
+      "GUILD_MESSAGE_REACTIONS"
+    ]
+  },
+  shards: Number(process.env.PROCESS_ID) || "auto",
+  shardCount: Number(process.env.PROCESS_COUNT),
+  messageCacheLifetime: 120,
+  messageCacheMaxSize: 50,
 });
 
 bot.login(process.env.BOT_TOKEN)
 
 module.exports = {
-    DiscordCL: bot
+  DiscordCL: bot
 }

@@ -1,4 +1,4 @@
-module.exports = ({score}) => {
+module.exports = ({ score }) => {
     let fm_score = score;
     if (score >= 1000) {
         let units = ['k', 'M', 'B', 'T']

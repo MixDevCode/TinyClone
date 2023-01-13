@@ -1,10 +1,10 @@
 {
     "avatar": {
-        "text": "{username}의 프로필사진"    
+        "text": "{username}의 프로필사진"
     },
     "bug_and_suggest": {
-        "bug": "버그", 
-        "suggestion": "제안"              
+        "bug": "버그",
+        "suggestion": "제안"
     },
     "osu": {
         "profile": {
@@ -32,8 +32,8 @@
     },
     "errors": {
         "osu": {
-            "player_null": "플레이어를 찾지 못했어요!",                    
-            "no_recent_play": "플레이어의 24시간 내의 플레이 기록이 없어요."         
-        }                   
+            "player_null": "플레이어를 찾지 못했어요!",
+            "no_recent_play": "플레이어의 24시간 내의 플레이 기록이 없어요."
+        }
     }
 }

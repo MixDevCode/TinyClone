@@ -5,11 +5,11 @@ const request = require('superagent')
 /** 
 * @param {{message: Message}} 
 */
-async function trivia({message}){
+async function trivia({ message }) {
     function shuffle(arr) {
         arr.sort(() => Math.random() - 0.5);
         return arr;
-      }
+    }
     function isCorrect(answers, correct_awnser, pos) {
         let correct = false
         if (decodeURIComponent(correct_awnser) == answers[pos]) {
@@ -31,7 +31,7 @@ async function trivia({message}){
             stopCollection(reactions, 'incorrect')
         }
     }
-    let embedcolor = (message.guild == null ? "#7f7fff": message.guild.me.displayColor)
+    let embedcolor = (message.guild == null ? "#7f7fff" : message.guild.me.displayColor)
     let question = (await request.get('https://opentdb.com/api.php?amount=1&encode=url3986')).body
     let question_type = question.results[0].type
     let answers = []
@@ -65,10 +65,10 @@ async function trivia({message}){
 :x: ◆ ${shuffled_answers[1]}`
     }
     let embed = new MessageEmbed()
-    .setColor(embedcolor)
-    .setAuthor(`Category: ${decodeURIComponent(question.results[0].category)}`, message.client.user.avatarURL())
-    .setDescription(description)
-    let msg1 = await message.channel.send({embed})
+        .setColor(embedcolor)
+        .setAuthor({ name: `Category: ${decodeURIComponent(question.results[0].category)}`, iconURL: message.client.user.avatarURL() })
+        .setDescription(description)
+    let msg1 = await message.channel.send({ embeds: [embed] })
     if (question_type == 'multiple') {
         await msg1.react('1️⃣')
         await msg1.react('2️⃣')
@@ -78,10 +78,10 @@ async function trivia({message}){
         let twofilter = (reaction, user) => reaction.emoji.name == "2️⃣" && user.id == message.author.id
         let threefilter = (reaction, user) => reaction.emoji.name == "3️⃣" && user.id == message.author.id
         let fourfilter = (reaction, user) => reaction.emoji.name == "4️⃣" && user.id == message.author.id
-        let react_one = msg1.createReactionCollector(onefilter, {time: 10000, maxEmojis: 1}) 
-        let react_two = msg1.createReactionCollector(twofilter, {time: 10000, maxEmojis: 1})
-        let react_three = msg1.createReactionCollector(threefilter, {time: 10000, maxEmojis: 1}) 
-        let react_four = msg1.createReactionCollector(fourfilter, {time: 10000, maxEmojis: 1})
+        let react_one = msg1.createReactionCollector(onefilter, { time: 10000, maxEmojis: 1 })
+        let react_two = msg1.createReactionCollector(twofilter, { time: 10000, maxEmojis: 1 })
+        let react_three = msg1.createReactionCollector(threefilter, { time: 10000, maxEmojis: 1 })
+        let react_four = msg1.createReactionCollector(fourfilter, { time: 10000, maxEmojis: 1 })
         react_one.on('collect', reaction => {
             checkAnswer([react_one, react_two, react_three, react_four], shuffled_answers, question, 0)
         })
@@ -104,8 +104,8 @@ async function trivia({message}){
         await msg1.react('✔️')
         let falsefilter = (reaction, user) => reaction.emoji.name == "❌" && user.id == message.author.id
         let truefilter = (reaction, user) => reaction.emoji.name == "✔️" && user.id == message.author.id
-        let react_false = msg1.createReactionCollector(falsefilter, {time: 10000, maxEmojis: 1}) 
-        let react_true = msg1.createReactionCollector(truefilter, {time: 10000, maxEmojis: 1})
+        let react_false = msg1.createReactionCollector(falsefilter, { time: 10000, maxEmojis: 1 })
+        let react_true = msg1.createReactionCollector(truefilter, { time: 10000, maxEmojis: 1 })
         react_false.on('collect', reaction => {
             checkAnswer([react_false, react_true], shuffled_answers, question, 1)
         })
@@ -123,12 +123,12 @@ async function trivia({message}){
 /** 
  * @param {{message: Message}} 
  */
-async function tenor({message, search, action, alone_action}) {
+async function tenor({ message, search, action, alone_action }) {
     try {
         let msg = message.content.toLowerCase();
-        let embedcolor = (message.guild == null ? "#7f7fff": message.guild.me.displayColor)
+        let embedcolor = (message.guild == null ? "#7f7fff" : message.guild.me.displayColor)
         let text = ''
-        let suffix = fx.general.check_suffix({check_msg: msg, two_arg: false, suffix: [{"suffix": undefined, "v_count": 0}]})
+        let suffix = fx.general.check_suffix({ check_msg: msg, two_arg: false, suffix: [{ "suffix": undefined, "v_count": 0 }] })
         let user = suffix.check.replace(/[<@>]/gm, '')
         if ((user == '' || user == message.author.id) || (action == undefined)) {
             text = alone_action
@@ -137,19 +137,19 @@ async function tenor({message, search, action, alone_action}) {
         }
         let gif = await (await request.get(`https://api.tenor.com/v1/search?q=${search}&key=${process.env.TENOR_KEY}&limit=25&media_filter=minimal&contentfilter=medium`)).body
         const embed = new MessageEmbed()
-        .setColor(embedcolor)
-        .setDescription(text)
-        .setImage(gif.results[Math.floor(Math.random()*25-0.01)].media[0].gif.url);
-        message.channel.send({embed})
+            .setColor(embedcolor)
+            .setDescription(text)
+            .setImage(gif.results[Math.floor(Math.random() * 25 - 0.01)].media[0].gif.url);
+        message.channel.send({ embeds: [embed] })
     } catch (error) {
-       message.channel.send(String(error))
+        message.channel.send(String(error))
     }
 }
 
 /** 
  * @param {{message: Message}} 
  */
-function roll({message}) {
+function roll({ message }) {
     try {
         let msg = message.content.toLowerCase()
         let number = msg.split(' ')[1]
@@ -164,7 +164,7 @@ function roll({message}) {
 /** 
  * @param {{message: Message}} 
  */
-function eight_ball({message}) {
+function eight_ball({ message }) {
     try {
         let msg = message.content.toLowerCase()
         let command = msg.split(' ')[0]
@@ -173,9 +173,9 @@ function eight_ball({message}) {
             throw 'Enter a message to guess your fate'
         }
         let random_respond = ['It is certain.', 'It is decidedly so.', 'Without a doubt.', 'Yes – definitely.', 'You may rely on it.',
-                            'As I see it, yes.', 'Most likely.', 'Outlook good.', 'Yes.', 'Signs point to yes.',
-                            'Reply hazy, try again.', 'Ask again later.', 'Better not tell you now.', 'Cannot predict now.', 'Concentrate and ask again.',
-                            "Don't count on it.", 'My reply is no.', 'My sources say no.', 'Outlook not so good.', 'Very doubtful.']
+            'As I see it, yes.', 'Most likely.', 'Outlook good.', 'Yes.', 'Signs point to yes.',
+            'Reply hazy, try again.', 'Ask again later.', 'Better not tell you now.', 'Cannot predict now.', 'Concentrate and ask again.',
+            "Don't count on it.", 'My reply is no.', 'My sources say no.', 'Outlook not so good.', 'Very doubtful.']
         let random = Math.floor(Math.random() * random_respond.length - 0.01)
         message.channel.send(random_respond[random])
     } catch (error) {
@@ -186,7 +186,7 @@ function eight_ball({message}) {
 /** 
  * @param {{message: Message}} 
  */
-function rate_waifu({message}) {
+function rate_waifu({ message }) {
     try {
         let msg = message.content.toLowerCase()
         let command = msg.split(' ')[0]
@@ -196,7 +196,7 @@ function rate_waifu({message}) {
         }
         let score = Math.floor(Math.random() * 101 - 0.01)
         let random_respond = [`Hmm... i rate ${waifu} a ${score}/100`, `This is tough... ${score}/100`, `Maybe ${waifu} is a ${score}/100`,
-                            `I would rate ${waifu} a ${score}/100`, `I rate ${waifu} a solid ${score}/100`]
+        `I would rate ${waifu} a ${score}/100`, `I rate ${waifu} a solid ${score}/100`]
         let random = Math.floor(Math.random() * random_respond.length - 0.01)
         if (score == 0) message.channel.send(`Your ${waifu} is too ugly! ${score}/100`);
         else if (score == 100) message.channel.send(`Woah! A pefect match! ${score}/100`);

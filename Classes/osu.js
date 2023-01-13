@@ -1,9 +1,9 @@
 const { threshold } = require('jimp')
 
 class Profile {
-    constructor({username, id, playcount, ranked_score, total_score, global_rank, country_rank,
-                level, pp, acc, count_ssh, count_ss, count_sh, count_s, count_a, online, supporter, playstyle, country_code,
-                rank_history, prev_username, cover_url, discord_tag}) {
+    constructor({ username, id, playcount, ranked_score, total_score, global_rank, country_rank,
+        level, pp, acc, count_ssh, count_ss, count_sh, count_s, count_a, online, supporter, playstyle, country_code,
+        rank_history, prev_username, cover_url, discord_tag }) {
         const get_icon = require('../Functions/general/icon_lib')
         this.username = username
         this.prev_username = prev_username?.length ? prev_username : []
@@ -26,7 +26,7 @@ class Profile {
         if (playstyle) playstyle = playstyle.map(e => e[0].toUpperCase() + e.substring(1))
         this.playstyle = (playstyle?.length) ? playstyle : []
         this.country_code = country_code
-        this.online_icon = (online == 'Offline') ? get_icon({type: "osu_offline"}) : get_icon({type: "osu_online"})
+        this.online_icon = (online == 'Offline') ? get_icon({ type: "osu_offline" }) : get_icon({ type: "osu_online" })
         this.rank_history = rank_history
         this.cover_url = cover_url
         this.discord_tag = discord_tag
@@ -34,8 +34,8 @@ class Profile {
 }
 
 class Score {
-    constructor({top, beatmap_id, score, combo, count_50, count_100, count_300, count_miss, count_katu, count_geki,
-                perfect, mod_num, user_id, username, date, rank, pp, acc, acc_detail}) {
+    constructor({ top, beatmap_id, score, combo, count_50, count_100, count_300, count_miss, count_katu, count_geki,
+        perfect, mod_num, user_id, username, date, rank, pp, acc, acc_detail }) {
         const get_icon = require('../Functions/general/icon_lib')
         const get_mod_text = require('../Functions/osu/mods_enum')
         const time_ago = require('../Functions/osu/time_ago')
@@ -59,25 +59,27 @@ class Score {
         this.pp = Number(pp)
         this.acc = Number(acc)
         this.acc_detail = acc_detail
-        this.rank_icon = get_icon({type: `rank_${rank}`})
-        this.mod_text = get_mod_text({mod: this.mod_num}).mod_text
-        this.time_ago = time_ago({time: date})
+        this.rank_icon = get_icon({ type: `rank_${rank}` })
+        this.mod_text = get_mod_text({ mod: this.mod_num }).mod_text
+        this.time_ago = time_ago({ time: date })
     }
-    addBeatmapInfo({mode, mod_num, title, creator, diff, source, artist, bpm, beatmapset_id, fc, star, time_total, time_drain,
-                    circle, spinner, slider, od, ar, hp, cs}) {
+    addBeatmapInfo({ mode, mod_num, title, creator, diff, source, artist, bpm, beatmapset_id, fc, star, time_total, time_drain,
+        circle, spinner, slider, od, ar, hp, cs }) {
         const beatmap_detail = require('../Functions/osu/beatmap_detail');
         const get_mode_detail = require('../Functions/osu/get_mode_detail')
-        let {a_mode} = get_mode_detail({mode: mode})
-        var {time_total, time_drain, bpm, cs, ar, od, hp} = beatmap_detail({mod_num: mod_num, mode: mode, 
-                                                                            time_total: Number(time_total), time_drain: Number(time_drain), 
-                                                                            bpm: Number(bpm), cs: Number(cs), ar: Number(ar), od: Number(od), hp: Number(hp)})
+        let { a_mode } = get_mode_detail({ mode: mode })
+        var { time_total, time_drain, bpm, cs, ar, od, hp } = beatmap_detail({
+            mod_num: mod_num, mode: mode,
+            time_total: Number(time_total), time_drain: Number(time_drain),
+            bpm: Number(bpm), cs: Number(cs), ar: Number(ar), od: Number(od), hp: Number(hp)
+        })
         this.title = title
         this.creator = creator
         this.diff = diff
         this.source = source
         this.artist = artist
         this.bpm = Number(bpm)
-        this.beatmapset_id = beatmapset_id 
+        this.beatmapset_id = beatmapset_id
         this.fc = Number(fc)
         this.star = Number(star)
         this.time_total = Number(time_total)
@@ -103,7 +105,7 @@ class Score {
             this.star *= (a_mode == 'taiko') ? 1.3 : (a_mode == 'ctb' || a_mode == 'mania') ? 1.4 : 1
         }
     }
-    addScoreSkill({acc_skill, speed_skill, aim_skill, star_skill, old_acc_skill}) {
+    addScoreSkill({ acc_skill, speed_skill, aim_skill, star_skill, old_acc_skill }) {
         this.star_skill = star_skill
         this.acc_skill = acc_skill
         this.old_acc_skill = old_acc_skill
@@ -113,8 +115,8 @@ class Score {
 }
 
 class Beatmap {
-    constructor({beatmap_id, title, creator, diff, bpm, approved, beatmapset_id, fc, star, time_total,
-                time_drain, favorite, source, artist, circle, slider, spinner, od, cs, hp, ar, a_mode}) {
+    constructor({ beatmap_id, title, creator, diff, bpm, approved, beatmapset_id, fc, star, time_total,
+        time_drain, favorite, source, artist, circle, slider, spinner, od, cs, hp, ar, a_mode }) {
         let approvalStatus_list = ['Graveyard', 'WIP', 'Pending', 'Ranked', 'Approved', 'Qualified', 'Loved']
         this.beatmap_id = beatmap_id
         this.title = title
@@ -122,7 +124,7 @@ class Beatmap {
         this.diff = diff
         this.bpm = Number(bpm)
         this.approved = Number(approved)
-        this.approvalStatus = approvalStatus_list[this.approved+2]
+        this.approvalStatus = approvalStatus_list[this.approved + 2]
         this.beatmapset_id = beatmapset_id
         this.star = Number(star)
         this.time_total = Number(time_total)
@@ -133,9 +135,9 @@ class Beatmap {
         this.circle = Number(circle)
         this.slider = Number(slider)
         this.spinner = Number(spinner)
-        this.fc = (a_mode == 'taiko') ? this.circle : 
-                    (a_mode == 'ctb') ? Math.round(this.circle + (this.slider * 2.35)) : 
-                    (a_mode == 'mania') ? this.circle + this.slider : Number(fc)
+        this.fc = (a_mode == 'taiko') ? this.circle :
+            (a_mode == 'ctb') ? Math.round(this.circle + (this.slider * 2.35)) :
+                (a_mode == 'mania') ? this.circle + this.slider : Number(fc)
         this.od = Number(od)
         this.cs = Number(cs)
         this.hp = Number(hp)
@@ -143,4 +145,4 @@ class Beatmap {
     }
 }
 
-module.exports = {Profile, Score, Beatmap}
+module.exports = { Profile, Score, Beatmap }

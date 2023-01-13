@@ -15,28 +15,47 @@ const { measureText } = require('jimp')
 const score = require('../Functions/osu/UI/score')
 // Database
 const mongojs = require('mongojs')
-const db = mongojs(process.env.DB_URL, ["user_data_v5", "server_data", "saved_map_id"], {tls: true})
+const db = mongojs(process.env.DB_URL, ["user_data_v5", "server_data", "saved_map_id"], { tls: true })
 let user_data = {}
 let beatmapID_cache = []
 //
-const check_server_suffix = [{"suffix": "-bancho", "v_count": 0},
-                            {"suffix": "-akatsuki", "v_count": 0},
-                            {"suffix": "-ripple", "v_count": 0},
-                            {"suffix": "-gatari", "v_count": 0},
-                            {"suffix": "-enjuu", "v_count": 0},
-                            {"suffix": "-horizon", "v_count": 0},
-                            {"suffix": "-ainu", "v_count": 0},
-                            {"suffix": "-datenshi", "v_count": 0},
-                            {"suffix": "-ezppfarm", "v_count": 0},
-                            {"suffix": "-kurikku", "v_count": 0}]
-const check_mode_suffix = [{"suffix": "-std", "v_count": 0},
-                            {"suffix": "-taiko", "v_count": 0},
-                            {"suffix": "-ctb", "v_count": 0},
-                            {"suffix": "-mania", "v_count": 0},
-                            {"suffix": "-rx", "v_count": 0},]
+const check_server_suffix = [{ "suffix": "-bancho", "v_count": 0 },
+{ "suffix": "-akatsuki", "v_count": 0 },
+{ "suffix": "-ripple", "v_count": 0 },
+{ "suffix": "-gatari", "v_count": 0 },
+{ "suffix": "-enjuu", "v_count": 0 },
+{ "suffix": "-horizon", "v_count": 0 },
+{ "suffix": "-ainu", "v_count": 0 },
+{ "suffix": "-datenshi", "v_count": 0 },
+{ "suffix": "-ezppfarm", "v_count": 0 },
+{ "suffix": "-kurikku", "v_count": 0 }]
+const check_mode_suffix = [{ "suffix": "-std", "v_count": 0 },
+{ "suffix": "-taiko", "v_count": 0 },
+{ "suffix": "-ctb", "v_count": 0 },
+{ "suffix": "-mania", "v_count": 0 },
+{ "suffix": "-rx", "v_count": 0 },]
+
+// Error embed
+async function error_send({ message, e }) {
+    const embed = new MessageEmbed({
+        color: 0xff0000,
+        author: {
+            icon_url: "https://cdn0.iconfinder.com/data/icons/shift-interfaces/32/Error-512.png",
+            name: "Error",
+        },
+        description: `\`\`\`js\n${(e.stack)}\`\`\``,
+        footer: {
+            text: `${message.content}`
+        }
+    });
+    if (e instanceof TypeError)
+        embed.setDescription(`\`\`\`js\n${(e.message)}\`\`\``);
+    return await message.client.channels.cache.get('1021288218152402965').send({embeds: [embed]})
+}
+
 
 // Sync db
-function sync_user_data_db({name, check_type, user_id}) {
+function sync_user_data_db({ name, check_type, user_id }) {
     if (user_data[user_id]) {
         user_data[user_id].name[check_type] = name
     } else {
@@ -49,21 +68,21 @@ function sync_user_data_db({name, check_type, user_id}) {
     }
 }
 
-function sync_saved_beatmap_db({mode, beatmap_id, channel_id, type}) {
+function sync_saved_beatmap_db({ mode, beatmap_id, channel_id, type }) {
     for (let i = 0; i < beatmapID_cache.length; i++) {
         if (beatmapID_cache[i].channel == channel_id) {
             beatmapID_cache.splice(i, 1)
             i--
         }
     }
-    beatmapID_cache.push({beatmap_id: beatmap_id, channel: channel_id, mode: mode, type: type})
+    beatmapID_cache.push({ beatmap_id: beatmap_id, channel: channel_id, mode: mode, type: type })
 }
 //
 
 /** 
  * @param {{message: Message}} 
  */
-function cache_beatmap_ID({message, beatmap_id, mode, track = false, channel_id}) {
+function cache_beatmap_ID({ message, beatmap_id, mode, track = false, channel_id }) {
     let sync_db_value = {
         mode: mode,
         beatmap_id: beatmap_id,
@@ -79,17 +98,17 @@ function cache_beatmap_ID({message, beatmap_id, mode, track = false, channel_id}
             i--
         }
     }
-    beatmapID_cache.push({beatmap_id: beatmap_id, channel: channel_id, mode: mode, type: type})
-    process.send({send_type: "db", cmd: "saved_beatmap", value: sync_db_value})
-    if (!config.config.debug.disable_db_save) db.saved_map_id.findAndModify({query: {}, update: {'0': beatmapID_cache}}, function(){})
+    beatmapID_cache.push({ beatmap_id: beatmap_id, channel: channel_id, mode: mode, type: type })
+    process.send({ send_type: "db", cmd: "saved_beatmap", value: sync_db_value })
+    if (!config.config.debug.disable_db_save) db.saved_map_id.findAndModify({ query: {}, update: { '0': beatmapID_cache } }, function () { })
 }
 
-function push_db({user, saved_map_id}) {
+function push_db({ user, saved_map_id }) {
     user_data = user
     beatmapID_cache = saved_map_id
 }
 
-function set_mode({suffix, a_mode = undefined, default_a_mode = 'std', default_check_type = 'bancho'}) {
+function set_mode({ suffix, a_mode = undefined, default_a_mode = 'std', default_check_type = 'bancho' }) {
     if (!a_mode) {
         a_mode = check_mode_suffix.find(m => suffix?.[m.suffix])?.suffix
         a_mode = (a_mode) ? a_mode.replace('-', '') : default_a_mode
@@ -102,28 +121,28 @@ function set_mode({suffix, a_mode = undefined, default_a_mode = 'std', default_c
 /** 
  * @param {{message: Message}} 
  */
-async function osu_ts({message, embed_color, refresh, name, mode, skill, skill_name}) {
-    let {modename} = fx.osu.get_mode_detail({mode: mode})
-    let user = await fx.osu.api.get_profile({name: name, mode: mode, ver: 1})
+async function osu_ts({ message, embed_color, refresh, name, mode, skill, skill_name }) {
+    let { modename } = fx.osu.get_mode_detail({ mode: mode })
+    let user = await fx.osu.api.get_profile({ name: name, mode: mode, ver: 1 })
     if (!user) {
-        message.channel.send(error_report({type: 'custom', err_message: errorLocalText.osu.player_null}))
+        message.channel.send(error_report({ type: 'custom', err_message: errorLocalText.osu.player_null }))
         return
     }
-    let best = await fx.osu.api.get_top({name: name, mode: mode, limit: 50, type: 'best', ver: 2})
+    let best = await fx.osu.api.get_top({ name: name, mode: mode, limit: 50, type: 'best', ver: 2 })
     if (best.length < 50) {
         throw "You don't have enough plays to calculate skill (Atleast 50 top plays)"
     }
     let msg1 = await message.channel.send('Calculating skills...')
-    let {calc_count} = await fx.osu.calc_player_skill({best: best, mode: mode})
+    let { calc_count } = await fx.osu.calc_player_skill({ best: best, mode: mode })
     best = best.filter(a => a[skill])
-    best.sort((a,b) => b[skill] - a[skill])
+    best.sort((a, b) => b[skill] - a[skill])
     // Page function
-    async function load_page({page}) {
+    async function load_page({ page }) {
         let desc = ''
         let start = (page - 1) * 5
         for (let i = start; i < start + 5; i++) {
             if (!best[i]) break
-            let overlay = `${i+1}. **[${best[i].title}](https://osu.ppy.sh/b/${best[i].beatmap_id})** (${Number(best[i].star_skill).toFixed(2)}★) ${best[i].mod_text}
+            let overlay = `${i + 1}. **[${best[i].title}](https://osu.ppy.sh/b/${best[i].beatmap_id})** (${Number(best[i].star_skill).toFixed(2)}★) ${best[i].mod_text}
 ${best[i].rank_icon} *${best[i].diff}* ◆ **Acc:** ${Number(best[i].acc).toFixed(2)}%
 \`${skill_name.charAt(0).toUpperCase() + skill_name.slice(1)}: ${Number(best[i][skill]).toFixed(2)}★\`\n\n`
             desc += overlay
@@ -133,84 +152,92 @@ ${best[i].rank_icon} *${best[i].diff}* ◆ **Acc:** ${Number(best[i].acc).toFixe
 
     if (calc_count == 50) msg1.delete()
     else msg1.edit(`**Some top play(s) have missing info, some numbers on the embed may not be accurate. Calculated top play: ${calc_count}/50**`);
-    let {pfp_link} = fx.osu.get_profile_link({id: user.id, mode: mode, refresh: refresh})
+    let { pfp_link } = fx.osu.get_profile_link({ id: user.id, mode: mode, refresh: refresh })
     const embed = new MessageEmbed()
-    .setAuthor(`osu!${modename} top ${skill_name} for: ${user.username}`)
-    .setThumbnail(pfp_link)
-    .setColor(embed_color)
-    .setFooter(`{page}`);
-    fx.general.page_system({message: message, embed: embed, update_func: load_page,
-                            max_duration: Math.ceil(best.length / 5) * 30000, max_page: Math.ceil(best.length / 5)})
+        .setAuthor({ name: `osu!${modename} top ${skill_name} for: ${user.username}` })
+        .setThumbnail(pfp_link)
+        .setColor(embed_color)
+        .setFooter({ text: `{page}` });
+    fx.general.page_system({
+        message: message, embed: embed, update_func: load_page,
+        max_duration: Math.ceil(best.length / 5) * 30000, max_page: Math.ceil(best.length / 5)
+    })
 }
 
 /** 
  * @param {{message: Message}} 
  */
-async function osuavatar({message, embed_color, refresh, lang, prefix}) {
+async function osuavatar({ message, embed_color, refresh, lang, prefix }) {
     let msg = message.content.toLowerCase();
     let command = msg.split(' ')[0]
     if (fx.general.cmd_cooldown.cooldown[message.author.id] !== undefined && fx.general.cmd_cooldown.cooldown[message.author.id].indexOf(command) !== -1) {
-        message.channel.send(error_report({type: 'custom', err_message: 'You need to wait 5 seconds before using this again!'}))
+        message.channel.send(error_report({ type: 'custom', err_message: 'You need to wait 5 seconds before using this again!' }))
         return;
     }
-    fx.general.cmd_cooldown.set({message: message, cmd: command, time: 5000})
-    let suffix = fx.general.check_suffix({check_msg: msg, two_arg: false, suffix: check_server_suffix})
+    fx.general.cmd_cooldown.set({ message: message, cmd: command, time: 5000 })
+    let suffix = fx.general.check_suffix({ check_msg: msg, two_arg: false, suffix: check_server_suffix })
     // Set the correct mode
-    let mode = set_mode({suffix: suffix, a_mode: 'std'})
-    let {check_type} = fx.osu.get_mode_detail({mode: mode})
+    let mode = set_mode({ suffix: suffix, a_mode: 'std' })
+    let { check_type } = fx.osu.get_mode_detail({ mode: mode })
     //
-    let name = fx.osu.check_player({user_data: user_data, message: message, name: suffix.check, type: check_type, 
-                                    prefix: prefix, lang: lang})
-    
+    let name = fx.osu.check_player({
+        user_data: user_data, message: message, name: suffix.check, type: check_type,
+        prefix: prefix, lang: lang
+    })
+
     // Get Information
-    let user = await fx.osu.api.get_profile({name: name, mode: mode, ver: 1})
-    let {pfp_link} = fx.osu.get_profile_link({id: user.id, mode: mode, refresh: refresh})
+    let user = await fx.osu.api.get_profile({ name: name, mode: mode, ver: 1 })
+    let { pfp_link } = fx.osu.get_profile_link({ id: user.id, mode: mode, refresh: refresh })
     const embed = new MessageEmbed()
-    .setAuthor(`Avatar for ${user.username}`)
-    .setColor(embed_color)
-    .setImage(pfp_link);
-    message.channel.send({embed})
+        .setAuthor({ name: `Avatar for ${user.username}` })
+        .setColor(embed_color)
+        .setImage(pfp_link);
+    message.channel.send({ embeds: [embed] })
 }
 
 /** 
  * @param {{message: Message}} 
  */
-async function osu({message, embed_color, refresh, a_mode, lang, prefix}) {
+async function osu({ message, embed_color, refresh, a_mode, lang, prefix }) {
     try {
         let msg = message.content.toLowerCase()
         let command = msg.split(' ')[0]
         if (fx.general.cmd_cooldown.cooldown[message.author.id] !== undefined && fx.general.cmd_cooldown.cooldown[message.author.id].indexOf(command) !== -1) {
-            message.channel.send(error_report({type: 'custom', err_message: 'You need to wait 3 seconds before using this again!'}))
+            message.channel.send(error_report({ type: 'custom', err_message: 'You need to wait 3 seconds before using this again!' }))
             return;
         }
-        fx.general.cmd_cooldown.set({message: message, cmd: command, time: 3000})
-        const errorLocalText = getLocalText({lang: lang}).errors
-        let suffix = fx.general.check_suffix({check_msg: msg, two_arg: true, 
-                                            suffix: [{"suffix": "-d", "v_count": 0},
-                                                    {"suffix": "-rank", "v_count": 1},
-                                                    {"suffix": "-ts", "v_count": 0},
-                                                    {"suffix": "-accts", "v_count": 0},
-                                                    {"suffix": "-speedts", "v_count": 0},
-                                                    {"suffix": "-aimts", "v_count": 0},
-                                                    {"suffix": "-fcts", "v_count": 0},
-                                                    {"suffix": "-g", "v_count": 0},
-                                                    ...check_server_suffix]})
+        fx.general.cmd_cooldown.set({ message: message, cmd: command, time: 3000 })
+        const errorLocalText = getLocalText({ lang: lang }).errors
+        let suffix = fx.general.check_suffix({
+            check_msg: msg, two_arg: true,
+            suffix: [{ "suffix": "-d", "v_count": 0 },
+            { "suffix": "-rank", "v_count": 1 },
+            { "suffix": "-ts", "v_count": 0 },
+            { "suffix": "-accts", "v_count": 0 },
+            { "suffix": "-speedts", "v_count": 0 },
+            { "suffix": "-aimts", "v_count": 0 },
+            { "suffix": "-fcts", "v_count": 0 },
+            { "suffix": "-g", "v_count": 0 },
+            ...check_server_suffix]
+        })
         // Set the correct mode
-        let mode = set_mode({suffix: suffix, a_mode : a_mode})
+        let mode = set_mode({ suffix: suffix, a_mode: a_mode })
         //
-        let {modename, modeicon, modenum, check_type} = fx.osu.get_mode_detail({mode: mode})
-        let name = fx.osu.check_player({user_data: user_data, message: message, name: suffix.check, type: check_type, 
-                                        prefix: prefix, lang: lang})
+        let { modename, modeicon, modenum, check_type } = fx.osu.get_mode_detail({ mode: mode })
+        let name = fx.osu.check_player({
+            user_data: user_data, message: message, name: suffix.check, type: check_type,
+            prefix: prefix, lang: lang
+        })
         if (!name) return
         if (suffix["-d"]) {
-            let user = await fx.osu.api.get_profile({name: name, mode: mode, ver: 2})
+            let user = await fx.osu.api.get_profile({ name: name, mode: mode, ver: 2 })
             if (!user) {
-                message.channel.send(error_report({type: 'custom', err_message: errorLocalText.osu.player_null}))
+                message.channel.send(error_report({ type: 'custom', err_message: errorLocalText.osu.player_null }))
                 return
             }
-            let {pfp_link, profile_link} = fx.osu.get_profile_link({id: user.id, mode: mode, refresh: refresh})
-            let localText = getLocalText({lang: lang}).osu.profile
-            let verified = (user.discord_tag == message.author.tag) ? fx.general.get_icon({type: "osu_verified"}) : ''
+            let { pfp_link, profile_link } = fx.osu.get_profile_link({ id: user.id, mode: mode, refresh: refresh })
+            let localText = getLocalText({ lang: lang }).osu.profile
+            let verified = (user.discord_tag == message.author.tag) ? fx.general.get_icon({ type: "osu_verified" }) : ''
             let desc = `${modeicon}${verified} **Detailed statistic of [${user.username}](${profile_link})**`
             desc += (user.prev_username.length) ? `\n${localText.prev_username}: ${user.prev_username.join(', ')}` : ''
             desc += (user.playstyle.length) ? `\n${localText.play_style}: ${user.playstyle.join(', ')}` : ''
@@ -220,19 +247,23 @@ async function osu({message, embed_color, refresh, a_mode, lang, prefix}) {
             field1 += `**${localText.lvl}:** ${user.level}\n**${localText.acc}:** ${user.acc}%\n**${localText.play_count}:** ${user.playcount.toLocaleString('en')}\n`
             field1 += `**${localText.ranked_score}:** ${user.ranked_score.toLocaleString('en')} • **${localText.total_score}:** ${user.total_score.toLocaleString('en')}\n`
             let total_count_rank = user.count_ssh + user.count_ss + user.count_sh + user.count_s + user.count_a
-            field1 += `${fx.general.get_icon({type: "rank_SSH"})}: ${user.count_ssh.toLocaleString('en')} (${(user.count_ssh/total_count_rank*100).toFixed(2)}%) • `
-            field1 += `${fx.general.get_icon({type: "rank_SS"})}: ${user.count_ss.toLocaleString('en')} (${(user.count_ss/total_count_rank*100).toFixed(2)}%)\n`
-            field1 += `${fx.general.get_icon({type: "rank_SH"})}: ${user.count_sh.toLocaleString('en')} (${(user.count_sh/total_count_rank*100).toFixed(2)}%) • `
-            field1 += `${fx.general.get_icon({type: "rank_S"})}: ${user.count_s.toLocaleString('en')} (${(user.count_s/total_count_rank*100).toFixed(2)}%)\n`
-            field1 += `${fx.general.get_icon({type: "rank_A"})}: ${user.count_a.toLocaleString('en')} (${(user.count_a/total_count_rank*100).toFixed(2)}%)`
+            field1 += `${fx.general.get_icon({ type: "rank_SSH" })}: ${user.count_ssh.toLocaleString('en')} (${(user.count_ssh / total_count_rank * 100).toFixed(2)}%) • `
+            field1 += `${fx.general.get_icon({ type: "rank_SS" })}: ${user.count_ss.toLocaleString('en')} (${(user.count_ss / total_count_rank * 100).toFixed(2)}%)\n`
+            field1 += `${fx.general.get_icon({ type: "rank_SH" })}: ${user.count_sh.toLocaleString('en')} (${(user.count_sh / total_count_rank * 100).toFixed(2)}%) • `
+            field1 += `${fx.general.get_icon({ type: "rank_S" })}: ${user.count_s.toLocaleString('en')} (${(user.count_s / total_count_rank * 100).toFixed(2)}%)\n`
+            field1 += `${fx.general.get_icon({ type: "rank_A" })}: ${user.count_a.toLocaleString('en')} (${(user.count_a / total_count_rank * 100).toFixed(2)}%)`
             // Rank history image
-            const g_options = 
-            {width: 800, height: 222, 
-            axisX: {offset: 0, showGrid: false},
-            axisY: {offset: 40, scaleMinSpace: 44, labelOffset: {x: 0, y: -5}, 
-                    onlyInteger: true, labelInterpolationFnc: (value, i) => {return -value}},
-            chartPadding: {top: 35, right: 40, bottom: 35, left: 0}};
-            const g_data = {labels: [], series: [user.rank_history.map(r => r * -1)]}
+            const g_options =
+            {
+                width: 800, height: 222,
+                axisX: { offset: 0, showGrid: false },
+                axisY: {
+                    offset: 40, scaleMinSpace: 44, labelOffset: { x: 0, y: -5 },
+                    onlyInteger: true, labelInterpolationFnc: (value, i) => { return -value }
+                },
+                chartPadding: { top: 35, right: 40, bottom: 35, left: 0 }
+            };
+            const g_data = { labels: [], series: [user.rank_history.map(r => r * -1)] }
             let g_graph = await chartist('line', g_options, g_data)
             // SVG to HTML
             let graph = cheerio.load(g_graph)
@@ -250,36 +281,36 @@ async function osu({message, embed_color, refresh, a_mode, lang, prefix}) {
             svg = await convert()
             let graph_img = await jimp.read(svg)
             let cover_img = await jimp.read(user.cover_url)
-            if (cover_img.getHeight()/cover_img.getWidth()<0.2775) cover_img.resize(jimp.AUTO, 222)
+            if (cover_img.getHeight() / cover_img.getWidth() < 0.2775) cover_img.resize(jimp.AUTO, 222)
             else cover_img.resize(800, jimp.AUTO);
-            cover_img.crop(0,0,800,222).brightness(-0.5).blur(5)
+            cover_img.crop(0, 0, 800, 222).brightness(-0.5).blur(5)
             cover_img.composite(graph_img, 0, 0)
             const attachment = new MessageAttachment(await cover_img.getBufferAsync(jimp.MIME_PNG), 'rank.png')
             // Embed
             const embed = new MessageEmbed()
-            .setDescription(desc)
-            .setColor(embed_color)
-            .addField(`${localText.performance}:`, field1)
-            .setThumbnail(pfp_link)
-            .attachFiles([attachment])
-            .setImage('attachment://rank.png')
-            message.channel.send({embed})
-        } else if (suffix["-ts"]) { 
-            let user = await fx.osu.api.get_profile({name: name, mode: mode, ver: 1})
+                .setDescription(desc)
+                .setColor(embed_color)
+                .setFields([{ name: localText.performance, value: field1 }])
+                .setThumbnail(pfp_link)
+                .attachFiles([attachment])
+                .setImage('attachment://rank.png')
+            message.channel.send({ embeds: [embed] })
+        } else if (suffix["-ts"]) {
+            let user = await fx.osu.api.get_profile({ name: name, mode: mode, ver: 1 })
             if (!user) {
-                message.channel.send(error_report({type: 'custom', err_message: errorLocalText.osu.player_null}))
+                message.channel.send(error_report({ type: 'custom', err_message: errorLocalText.osu.player_null }))
                 return
             }
-            let best = await fx.osu.api.get_top({name: name, mode: mode, limit: 50, type: 'best', ver: 2})
+            let best = await fx.osu.api.get_top({ name: name, mode: mode, limit: 50, type: 'best', ver: 2 })
             if (best.length < 50) {
                 throw "You don't have enough plays to calculate skill (Atleast 50 top plays)"
             }
             let msg1 = await message.channel.send('Calculating skills...')
-            let {star_avg, aim_avg, speed_avg, acc_avg, calc_count} = await fx.osu.calc_player_skill({best: best, mode: mode})
+            let { star_avg, aim_avg, speed_avg, acc_avg, calc_count } = await fx.osu.calc_player_skill({ best: best, mode: mode })
             let field = []
-            function textloading (skill) {
+            function textloading(skill) {
                 let text = ''
-                let top = best.sort((a,b) => b[skill] - a[skill])
+                let top = best.sort((a, b) => b[skill] - a[skill])
                 for (let i = 0; i < 3; i++) {
                     text += `\`${Number(top[i][skill]).toFixed(2)}★\` ${top[i].rank_icon} [${top[i].title} [${top[i].diff}]](https://osu.ppy.sh/b/${top[i].beatmap_id})\n`
                 }
@@ -289,132 +320,164 @@ async function osu({message, embed_color, refresh, a_mode, lang, prefix}) {
             textloading('aim_skill')
             textloading('speed_skill')
             textloading('acc_skill')
-            let {profile_link, pfp_link} = fx.osu.get_profile_link({id: user.id, refresh: refresh, mode: mode})
+            let { profile_link, pfp_link } = fx.osu.get_profile_link({ id: user.id, refresh: refresh, mode: mode })
             let aim_field = 'Top aim skill:'
             if (modenum == 3) aim_field = 'Top finger control skill:'
             if (calc_count !== 50) msg1.edit(`**Some top play(s) have missing info, some numbers on the embed may not be accurate. Calculated top play: ${calc_count}/50**`);
             const embed = new MessageEmbed()
-            .setDescription(`${modeicon} **Osu!${modename} top skill for: [${user.username}](${profile_link})**`)
-            .setThumbnail(pfp_link)
-            .addField(`${user.username} average skill:`, `
-    Star: \`${Number(star_avg/50).toFixed(2)}★\`
-    Aim skill: \`${Number(aim_avg/50).toFixed(2)}★\`
-    Speed skill: \`${Number(speed_avg/50).toFixed(2)}★\`
-    Accuracy skill: \`${Number(acc_avg/50).toFixed(2)}★\``)
-            .addField('Top star skill:', field[0])
-            .addField(aim_field, field[1])
-            .addField('Top speed skill:', field[2])
-            .addField('Top acc skill:', field[3]);
-            msg1.edit({embed})
-        } else if (suffix["-accts"]) { 
-            osu_ts({message: message, embed_color: embed_color, refresh: refresh, name: name, mode: mode,
-                    skill: 'acc_skill', skill_name: 'acc skill'})
-        } else if (suffix["-speedts"]  && a_mode !== 'ctb') { 
-            osu_ts({message: message, embed_color: embed_color, refresh: refresh, name: name, mode: mode,
-                    skill: 'speed_skill', skill_name: 'speed skill'})
-        } else if (suffix["-aimts"] && (a_mode == 'std' || a_mode == 'ctb')) { 
-            osu_ts({message: message, embed_color: embed_color, refresh: refresh, name: name, mode: mode,
-                    skill: 'aim_skill', skill_name: 'aim skill'})
-        } else if (suffix["-fcts"] && a_mode == 'mania') { 
-            osu_ts({message: message, embed_color: embed_color, refresh: refresh, name: name, mode: mode,
-                    skill: 'aim_skill', skill_name: 'finger control skill'})
+                .setDescription(`${modeicon} **Osu!${modename} top skill for: [${user.username}](${profile_link})**`)
+                .setThumbnail(pfp_link)
+                .addFields(
+                    {
+                        name: `${user.username} average skill:`,
+                        value: `
+                        Star: \`${Number(star_avg / 50).toFixed(2)}★\`${modenum != 1 ? `\nAim skill: \`${Number(aim_avg / 50).toFixed(2)}★\`` : ''}${modenum != 2 ? `\nSpeed skill: \`${Number(speed_avg / 50).toFixed(2)}★\`` : ''}
+                        Accuracy skill: \`${Number(acc_avg / 50).toFixed(2)}★\``
+                    },
+                    {
+                        name: 'Top star skill:', value: field[0]
+                    },
+                    {
+                        name: 'Top acc skill:', value: field[3]
+                    }
+                )
+
+            modenum != 2 ? embed.addFields({ name: 'Top speed skill:', value: field[2] }) : null
+            modenum != 1 ? embed.addFields({ name: aim_field, value: field[1] }) : null
+
+            msg1.edit({ embeds: [embed], content: '\u200B' })
+        } else if (suffix["-accts"]) {
+            osu_ts({
+                message: message, embed_color: embed_color, refresh: refresh, name: name, mode: mode,
+                skill: 'acc_skill', skill_name: 'acc skill'
+            })
+        } else if (suffix["-speedts"] && a_mode !== 'ctb') {
+            osu_ts({
+                message: message, embed_color: embed_color, refresh: refresh, name: name, mode: mode,
+                skill: 'speed_skill', skill_name: 'speed skill'
+            })
+        } else if (suffix["-aimts"] && (a_mode == 'std' || a_mode == 'ctb')) {
+            osu_ts({
+                message: message, embed_color: embed_color, refresh: refresh, name: name, mode: mode,
+                skill: 'aim_skill', skill_name: 'aim skill'
+            })
+        } else if (suffix["-fcts"] && a_mode == 'mania') {
+            osu_ts({
+                message: message, embed_color: embed_color, refresh: refresh, name: name, mode: mode,
+                skill: 'aim_skill', skill_name: 'finger control skill'
+            })
         } else {
-            let user = await fx.osu.api.get_profile({name: name, mode: mode, ver: 2})
+            let user = await fx.osu.api.get_profile({ name: name, mode: mode, ver: 2 })
             if (!user) {
-                message.channel.send(error_report({type: 'custom', err_message: errorLocalText.osu.player_null}))
+                message.channel.send(error_report({ type: 'custom', err_message: errorLocalText.osu.player_null }))
                 return
             }
-            const embed = fx.osu.ui.profile({mode: mode, refresh: refresh, modeicon: modeicon, embed_color: embed_color,
-                                                    modename: modename, lang: lang, user_tag: message.author.tag ,...user})
-            message.channel.send({embed})
+            const embed = fx.osu.ui.profile({
+                mode: mode, refresh: refresh, modeicon: modeicon, embed_color: embed_color,
+                modename: modename, lang: lang, user_tag: message.author.tag, ...user
+            })
+            message.channel.send({ embeds: [embed] })
         }
     } catch (err) {
-        message.channel.send(error_report({type: 'normal', err_message: err.stack.toString()}))
+        message.channel.send(error_report({ type: 'normal', err_message: err.stack.toString() }))
     }
 }
 
 /** 
  * @param {{message: Message}} 
  */
-async function osucard({message, embed_color, refresh, a_mode, lang, prefix}) {
+async function osucard({ message, embed_color, refresh, a_mode, lang, prefix }) {
     try {
-        const errorLocalText = getLocalText({lang: lang}).errors
+        const errorLocalText = getLocalText({ lang: lang }).errors
         let msg = message.content.toLowerCase()
         let command = msg.split(' ')[0]
         if (fx.general.cmd_cooldown.cooldown[message.author.id] !== undefined && fx.general.cmd_cooldown.cooldown[message.author.id].indexOf(command) !== -1) {
-            message.channel.send(error_report({type: 'custom', err_message: 'You need to wait 5 seconds before using this again!'}))
+            message.channel.send(error_report({ type: 'custom', err_message: 'You need to wait 5 seconds before using this again!' }))
             return;
         }
-        fx.general.cmd_cooldown.set({message: message, cmd: command, time: 5000})
-        let suffix = fx.general.check_suffix({check_msg: msg, two_arg: false, suffix: check_server_suffix})
+        fx.general.cmd_cooldown.set({ message: message, cmd: command, time: 5000 })
+        let suffix = fx.general.check_suffix({ check_msg: msg, two_arg: false, suffix: check_server_suffix })
         // Set the correct mode
-        let mode = set_mode({suffix: suffix, a_mode: a_mode})
+        let mode = set_mode({ suffix: suffix, a_mode: a_mode })
         //
-        let msg1 = await message.channel.send('Calculating skills...');
-        let {modenum, check_type} = fx.osu.get_mode_detail({mode: mode})
-        let name = fx.osu.check_player({user_data: user_data, message: message, name: suffix.check, type: check_type, 
-                                        prefix: prefix, lang: lang})
+        let msg1 = await message.channel.send('Calculating skills... **This may take a while (1-2 mins)**');
+        let { modenum, check_type } = fx.osu.get_mode_detail({ mode: mode })
+        let name = fx.osu.check_player({
+            user_data: user_data, message: message, name: suffix.check, type: check_type,
+            prefix: prefix, lang: lang
+        })
         if (a_mode == 'rx') {
-            message.channel.send(error_report({type: 'custom', err_message: errorLocalText.osu.relax_err}))
+            message.channel.send(error_report({ type: 'custom', err_message: errorLocalText.osu.relax_err }))
             return
         }
-        let user = await fx.osu.api.get_profile({name: name, mode: mode, event: 0, ver: 1})
+        let user = await fx.osu.api.get_profile({ name: name, mode: mode, event: 0, ver: 1 })
         if (!user) {
-            message.channel.send(error_report({type: 'custom', err_message: errorLocalText.osu.player_null}))
+            message.channel.send(error_report({ type: 'custom', err_message: errorLocalText.osu.player_null }))
             return
         }
-        let best = await fx.osu.api.get_top({name: name, mode: mode, limit: 50, type: 'best', ver: 2})
+        let best = await fx.osu.api.get_top({ name: name, mode: mode, limit: 50, type: 'best', ver: 2 })
         if (best.length < 50) {
-            message.channel.send(error_report({type: 'custom', err_message: "You don't have enough plays to calculate skill (Atleast 50 top plays)"}))
+            message.channel.send(error_report({ type: 'custom', err_message: "You don't have enough plays to calculate skill (Atleast 50 top plays)" }))
             return
         }
-        let {star_avg, aim_avg, speed_avg, acc_avg,
-            finger_control_avg, calc_count} = await fx.osu.calc_player_skill({best: best, mode: mode})
+        let { star_avg, aim_avg, speed_avg, acc_avg,
+            finger_control_avg, calc_count } = await fx.osu.calc_player_skill({ best: best, mode: mode })
         star_avg = Number(star_avg / calc_count)
         aim_avg = Number(aim_avg / calc_count * 100).toFixed(0)
         speed_avg = Number(speed_avg / calc_count * 100).toFixed(0)
         acc_avg = Number(acc_avg / calc_count * 100).toFixed(0)
-        finger_control_avg = Number(finger_control_avg/ calc_count * 100).toFixed(0)
+        finger_control_avg = Number(finger_control_avg / calc_count * 100).toFixed(0)
+        console.log('Username: ', user.username)
         // Process image
         msg1.edit('Processing Image...')
         let card_name = ['common_osu', 'rare_osu', 'elite_osu', 'super_rare_osu', 'ultra_rare_osu', 'master_osu']
         let get_card_name = Number(acc_avg >= 300) + Number(acc_avg >= 525) + Number(acc_avg >= 700) + Number(acc_avg >= 825) + Number(acc_avg >= 900)
         //
-        let card =  await jimp.read(`./osu_card/card/${card_name[get_card_name]}.png`)
+        let card = await jimp.read(`./osu_card/card/${card_name[get_card_name]}.png`)
         let fullstar = await jimp.read('./osu_card/star/full_star.png')
         let halfstar = await jimp.read('./osu_card/star/half_star.png');
         // Special card
         let special_plr, card_check = false;
-        let special_info = [{'id': '124493',    'mode': 'std',      'name': 'cookiezi',         'card': true, 'star': 'chocomint'},
-                            {'id': '7990747',   'mode': 'std',      'name': 'aika_asphyxia',    'card': true, 'star': 'diamond'},
-                            {'id': '8926244',   'mode': 'std',      'name': 'kahli',            'card': true, 'star': 'shooting_star'},
-                            {'id': '2611813',   'mode': 'std',      'name': 'lunpai',           'card': true, 'star': 'paw'},
-                            {'id': '4504101',   'mode': 'std',      'name': 'whitecat',         'card': true},
-                            {'id': '6447454',   'mode': 'std',      'name': 'aetrna',           'card': true},
-                            {'id': '7464885',   'mode': 'std',      'name': 'celsea',           'card': true},
-                            {'id': '39828',     'mode': 'std',      'name': 'www',              'card': true},
-                            {'id': '12694468',  'mode': 'std',      'name': 'xarief',           'card': true},
-                            {'id': '50265',     'mode': 'std',      'name': 'hvick'},
-                            {'id': '2558286',   'mode': 'std',      'name': 'rafis'},
-                            {'id': '5339515',   'mode': 'std',      'name': 'mathi'},
-                            {'id': '4650315',   'mode': 'std',      'name': 'idke'},
-                            {'id': '58710',     'mode': 'std',      'name': 'h1ko'},
-                            {'id': '211278',    'mode': 'std',      'name': 'flute'},
-                            {'id': '352328',    'mode': 'std',      'name': 'rrtyui'},
-                            {'id': '713266',    'mode': 'std',      'name': 'sayonara-bye'},
-                            {'id': '4787150',   'mode': 'std',      'name': 'vaxei'},
-                            {'id': '7562902',   'mode': 'std',      'name': 'mrekk'},
-                            {'id': '2774767',   'mode': 'taiko',    'name': 'tasuke912'},
-                            {'id': '6170507',   'mode': 'taiko',    'name': '_yu68'},
-                            {'id': '11199742',  'mode': 'taiko',    'name': 'nameless_ll'},
-                            {'id': '983349',    'mode': 'taiko',    'name': 'applerss'},
-                            {'id': '214187',    'mode': 'ctb'  ,    'name': 'exgon'},
-                            {'id': '533210',    'mode': 'ctb'  ,    'name': 'dusk'},
-                            {'id': '3885626',   'mode': 'ctb'  ,    'name': 'motion'},
-                            {'id': '4447639',   'mode': 'ctb'  ,    'name': 'irregularity'},
-                            {'id': '140148',    'mode': 'mania',    'name': 'jhlee0133'},
-                            {'id': '259972',    'mode': 'mania',    'name': 'jakads'},]
-        let check_plr = special_info.find(p => p.id == user.id && p.mode == a_mode)
+        let special_info = [{ 'id': '124493', 'name': 'cookiezi', 'card': true, 'star': 'chocomint' },
+        { 'id': '7990747', 'name': 'aika_asphyxia', 'card': true, 'star': 'diamond' },
+        { 'id': '8926244', 'name': 'kahli', 'card': true, 'star': 'shooting_star' },
+        { 'id': '2611813', 'name': 'lunpai', 'card': true, 'star': 'paw' },
+        { 'id': '4504101', 'name': 'whitecat', 'card': true },
+        { 'id': '6447454', 'name': 'aetrna', 'card': true },
+        { 'id': '7464885', 'name': 'celsea', 'card': true },
+        { 'id': '39828', 'name': 'www', 'card': true },
+        { 'id': '12694468', 'name': 'xarief', 'card': true },
+        { 'id': '50265', 'name': 'hvick' },
+        { 'id': '2558286', 'name': 'rafis' },
+        { 'id': '5339515', 'name': 'mathi' },
+        { 'id': '4650315', 'name': 'idke' },
+        { 'id': '58710', 'name': 'h1ko' },
+        { 'id': '211278', 'name': 'flute' },
+        { 'id': '352328', 'name': 'rrtyui' },
+        { 'id': '713266', 'name': 'sayonara-bye' },
+        { 'id': '4787150', 'name': 'vaxei' },
+        { 'id': '7562902', 'name': 'mrekk' },
+        { 'id': '2774767', 'name': 'tasuke912' },
+        { 'id': '6170507', 'name': '_yu68' },
+        { 'id': '11199742', 'name': 'nameless_ll' },
+        { 'id': '983349', 'name': 'applerss' },
+        { 'id': '214187', 'name': 'exgon' },
+        { 'id': '533210', 'name': 'dusk' },
+        { 'id': '3885626', 'name': 'motion' },
+        { 'id': '4447639', 'name': 'irregularity' },
+        { 'id': '140148', 'name': 'jhlee0133' },
+        { 'id': '259972', 'name': 'jakads' },
+        { 'id': '20932364', 'name': 'whatever', 'card': true },
+        { 'id': '31056883', 'name': 'Annona', 'card': true },
+        { 'id': '17561095', 'name': '- eiiden', 'card': true, 'star': 'eiiden' },
+        { 'id': '19970447', 'name': 'sdfghj', 'card': true },
+        { 'id': '4738326',  'name': '- Undefined', 'card': true},
+        //{'id': '5825887',   'name': 'MixFan',        'card': true},
+        { 'id': '13322013', 'name': 'AirFlux_YT', 'card': true },
+        { 'id': '9088283', 'name': 'RushiaLover', 'card': true },
+        { 'id': '16264188', 'name': 'Bajan', 'card': true },
+        { 'id': '24931759', 'name': 'Lunaero', 'card': true }]
+        let check_plr = special_info.find(p => p.id == user.id)
         if (check_plr) {
             special_plr = check_plr.name
             if (check_plr?.card) {
@@ -429,25 +492,36 @@ async function osucard({message, embed_color, refresh, a_mode, lang, prefix}) {
             }
         }
         //
-        let {pfp_link} = fx.osu.get_profile_link({id: user.id, refresh: refresh, mode: mode})
+        let { pfp_link } = fx.osu.get_profile_link({ id: user.id, refresh: refresh, mode: mode })
         if (special_plr == "lunpai") pfp_link = "https://i.imgur.com/3epazAt.png";
         let pfp = await jimp.read(pfp_link)
-        pfp.resize(320,320)
-        card.composite(pfp, 40,110)
+        if (user.id == '24931759') {
+            pfp.resize(300, 300)
+            card.composite(pfp, 50, 135)
+        } else {
+            pfp.resize(320, 320)
+            card.composite(pfp, 40, 110)
+        }
         // Get mode icon
         const icon_path = './osu_card/icon/'
-        const path_suffix = mode.toLowerCase().replace('-', '_') 
+        const path_suffix = mode.toLowerCase().replace('-', '_')
         let mode_icon = await jimp.read(`${icon_path}${path_suffix}.png`)
-        mode_icon.resize(80,80)
+        mode_icon.resize(80, 80)
         card.composite(mode_icon, 20, 20)
         // Get username
         let name_color = 'white'
-        let local_font = {localFontPath: './font/Somatic.otf', localFontName: 'Somatic'}
+        let local_font = { localFontPath: './font/Somatic.otf', localFontName: 'Somatic' }
+        if (user.id == '13322013') {
+            user.username = '4irF1ux';
+        } else if (user.id == '15622171') {
+            user.username = 'ElAlex2006';
+        }
         let nametext = await jimp.read(text2png(user.username, {
             color: name_color,
             font: '160px Somatic',
             lineSpacing: 15,
-            ...local_font}))
+            ...local_font
+        }))
         let nametextw = nametext.getWidth()
         let nametexth = nametext.getHeight()
         let max_name_h = (user.username.search(/[gjpqy]/gm) > -1) ? 35 : 27
@@ -457,562 +531,789 @@ async function osucard({message, embed_color, refresh, a_mode, lang, prefix}) {
             nametext.resize(jimp.AUTO, max_name_h)
         }
         nametext.contain(220, max_name_h, jimp.HORIZONTAL_ALIGN_CENTER)
-        let nametext_shadow = {size: 1, opacity: 0.35, x: 2, y: 2, blur: 1}
+        let nametext_shadow = { size: 1, opacity: 0.35, x: 2, y: 2, blur: 1 }
         let nametext_cv = new jimp(nametext.getWidth() * 1.25, nametext.getHeight() * 1.25, 0x00000000)
         nametext_cv.composite(nametext, 0, 0).shadow(nametext_shadow)
         card.composite(nametext_cv, 150, 50)
         // Stat
-        function card_stat() {
+        function card_stat(onlycard) {
             let skill_holder = [aim_avg, speed_avg, acc_avg]
             let skill_name_holder = ['Aim', 'Speed', 'Accuracy', 'Finger Control']
-            let modenum_skill = [{skill: [0,1,2]}, {skill: [1,2]}, {skill: [0,2]}, {skill: [0,1,2]}]
+            let modenum_skill = [{ skill: [0, 1, 2] }, { skill: [1, 2] }, { skill: [0, 2] }, { skill: [0, 1, 2] }]
             let skillname = '', skillnumber = '', stat_number_x = 170;
-            for (let num of modenum_skill[modenum].skill) {
-                if (modenum == 3 && num == 0) skillname += `${skill_name_holder[3]}:\n`;
-                else skillname += `${skill_name_holder[num]}:\n`;
-                skillnumber += `${skill_holder[num]}\n`
+            if (onlycard) {
+                for (let num of modenum_skill[modenum].skill) {
+                    if (modenum == 3 && num == 0) skillname += `${skill_name_holder[3]}: ${skill_holder[num]}\n`;
+                    else skillname += `${skill_name_holder[num]}: ${skill_holder[num]}\n`;
+                }
+                return { skillname: skillname, stat_number_x: stat_number_x }
+            } else {
+                for (let num of modenum_skill[modenum].skill) {
+                    if (modenum == 3 && num == 0) skillname += `${skill_name_holder[3]}:\n`;
+                    else skillname += `${skill_name_holder[num]}:\n`;
+                    skillnumber += `${skill_holder[num]}\n`
+                }
+                if (modenum == 3) {
+                    stat_number_x = 230
+                }
+                return { skillname: skillname, skillnumber: skillnumber, stat_number_x: stat_number_x }
             }
-            if (modenum == 3) {
-                stat_number_x = 230
-            }
-            return {skillname: skillname, skillnumber: skillnumber, stat_number_x: stat_number_x}
         }
-        let {skillname, skillnumber, stat_number_x} = card_stat()
+        let skillname = '', skillnumber = '', stat_number_x = 0;
+        if (special_plr == undefined || !card_check) {
+            skillname = card_stat(true).skillname
+        } else {
+            skillname = card_stat(false).skillname
+            skillnumber = card_stat(false).skillnumber
+            stat_number_x = card_stat(false).stat_number_x
+        }
         let stat_color = 'white'
-        let stat_shadow = {size: 1, opacity: 0.35, x: 2, y: 2, blur: 1}
+        let stat_shadow = { size: 1, opacity: 0.35, x: 2, y: 2, blur: 1 }
         if (special_plr == 'kahli') {
             stat_color = '#e0ffff'
             stat_shadow.opacity = 0.75
         }
         let text_line_spacing = 8
-        let stattext = await jimp.read(text2png(skillname, {
-            color: stat_color,
-            font: '28px Somatic',
-            lineSpacing: text_line_spacing,
-            textAlign: 'right',
-            ...local_font}))
-        let stattext_cv = new jimp(stattext.getWidth() * 1.1, stattext.getHeight() * 1.1, 0x00000000)
-        stattext_cv.composite(stattext, 0, 0).shadow(stat_shadow)
-        card.composite(stattext_cv, 24, 444)
-        let statnumber = await jimp.read(text2png(skillnumber, {
-            color: stat_color,
-            font: '28px Somatic',
-            lineSpacing: 15.2,
-            textAlign: 'left',
-            ...local_font}))
-        let statnumber_cv = new jimp(stattext.getWidth() * 1.1, stattext.getHeight() * 1.1, 0x00000000)
-        statnumber_cv.composite(statnumber, 0, 0).shadow(stat_shadow)
-        card.composite(statnumber_cv, stat_number_x, 444)
+        if (special_plr == undefined || !card_check) {
+            let stattext = await jimp.read(text2png(skillname, {
+                color: stat_color,
+                font: '28px Somatic',
+                lineSpacing: text_line_spacing,
+                textAlign: 'center',
+                ...local_font
+            }))
+            let stattext_cv = new jimp(stattext.getWidth() * 1.1, stattext.getHeight() * 1.1, 0x00000000)
+            stattext_cv.composite(stattext, 0, 0).shadow(stat_shadow)
+            if (modenum == 3) {
+                card.composite(stattext_cv, 74, 444)
+            } else {
+                card.composite(stattext_cv, 104, 444)
+            }
+        } else {
+            let stattext = await jimp.read(text2png(skillname, {
+                color: stat_color,
+                font: '28px Somatic',
+                lineSpacing: text_line_spacing,
+                textAlign: 'right',
+                ...local_font
+            }))
+            let stattext_cv = new jimp(stattext.getWidth() * 1.1, stattext.getHeight() * 1.1, 0x00000000)
+            stattext_cv.composite(stattext, 0, 0).shadow(stat_shadow)
+            card.composite(stattext_cv, 24, 444)
+            let statnumber = await jimp.read(text2png(skillnumber, {
+                color: stat_color,
+                font: '28px Somatic',
+                lineSpacing: 15.2,
+                textAlign: 'left',
+                ...local_font
+            }))
+            let statnumber_cv = new jimp(stattext.getWidth() * 1.1, stattext.getHeight() * 1.1, 0x00000000)
+            statnumber_cv.composite(statnumber, 0, 0).shadow(stat_shadow)
+            card.composite(statnumber_cv, stat_number_x, 444)
+        }
         // Star
         let star_width = 32
         let width = (Math.floor(star_avg) + ((star_avg % 1) >= 0.5 ? 1 : 0)) * star_width + 2
         let starholder = await new jimp(width, 33, 0x00000000)
         for (let i = 0; i < Math.ceil(star_avg); i++) {
-            if (i+1 > Math.floor(star_avg)) {
-                starholder.composite(halfstar, i*star_width, 0)
+            if (i + 1 > Math.floor(star_avg)) {
+                starholder.composite(halfstar, i * star_width, 0)
             } else {
-                starholder.composite(fullstar, i*star_width, 0)
+                starholder.composite(fullstar, i * star_width, 0)
             }
         }
         if (special_plr == undefined || !card_check) {
-            starholder.contain(400,33, jimp.HORIZONTAL_ALIGN_CENTER)
-            card.composite(starholder, 10, 551)
+            starholder.contain(383, 33, jimp.HORIZONTAL_ALIGN_CENTER)
+            card.composite(starholder, jimp.HORIZONTAL_ALIGN_CENTER, 551)
         } else {
-            starholder.contain(240,27, jimp.HORIZONTAL_ALIGN_CENTER)
+            starholder.contain(240, 27, jimp.HORIZONTAL_ALIGN_CENTER)
             card.composite(starholder, 15, 556)
         }
-        
+
         if (calc_count == 50) msg1.delete()
         else msg1.edit(`**Some top play(s) have missing info, some numbers on the card may not be accurate. Calculated top play: ${calc_count}/50**`);
-        message.channel.send({
+        message.reply({
             files: [{
-              attachment: await card.getBufferAsync(jimp.MIME_PNG),
-              name: 'card.png'
+                attachment: await card.getBufferAsync(jimp.MIME_PNG),
+                name: 'card.png'
             }]
         })
     } catch (err) {
-        message.channel.send(error_report({type: 'normal', err_message: err.stack.toString()}))
+        message.channel.send(error_report({ type: 'normal', err_message: err.stack.toString() }))
+        await error_send({ message: message, e: err });
     }
 }
 
 /** 
  * @param {{message: Message}} 
  */
-async function osutop({message, embed_color, refresh, a_mode, lang, prefix}) {
+async function osutop({ message, embed_color, refresh, a_mode, lang, prefix }) {
     try {
         let msg = message.content.toLowerCase()
         let command = msg.split(' ')[0]
         if (fx.general.cmd_cooldown.cooldown[message.author.id] !== undefined && fx.general.cmd_cooldown.cooldown[message.author.id].indexOf(command) !== -1) {
-            message.channel.send(error_report({type: 'custom', err_message: 'You need to wait 3 seconds before using this again!'}))
+            message.channel.send(error_report({ type: 'custom', err_message: 'You need to wait 3 seconds before using this again!' }))
             return;
         }
-        fx.general.cmd_cooldown.set({message: message, cmd: command, time: 3000})
-        const errorLocalText = getLocalText({lang: lang}).errors
-        let suffix = fx.general.check_suffix({check_msg: msg, two_arg: true, suffix: [{"suffix": "-p", "v_count": 1},
-                                                                                    {"suffix": "-r", "v_count": 0},
-                                                                                    {"suffix": "-m", "v_count": 1},
-                                                                                    {"suffix": "-g", "v_count": 1},
-                                                                                    {"suffix": "-s", "v_count": 1},
-                                                                                    {"suffix": "-a", "v_count": 0},
-                                                                                    {"suffix": "-c", "v_count": 0},
-                                                                                    {"suffix": "-page", "v_count": 0},
-                                                                                    ...check_server_suffix]})
+        fx.general.cmd_cooldown.set({ message: message, cmd: command, time: 3000 })
+        const errorLocalText = getLocalText({ lang: lang }).errors
+        let suffix = fx.general.check_suffix({
+            check_msg: msg, two_arg: true, suffix: [{ "suffix": "-p", "v_count": 1 },
+            { "suffix": "-r", "v_count": 0 },
+            { "suffix": "-m", "v_count": 1 },
+            { "suffix": "-g", "v_count": 1 },
+            { "suffix": "-s", "v_count": 1 },
+            { "suffix": "-a", "v_count": 0 },
+            { "suffix": "-c", "v_count": 0 },
+            { "suffix": "-page", "v_count": 0 },
+            ...check_server_suffix]
+        })
         // Set the correct mode
-        let mode = set_mode({suffix: suffix, a_mode: a_mode})
-        let {modename, check_type, modenum} = fx.osu.get_mode_detail({mode})
+        let mode = set_mode({ suffix: suffix, a_mode: a_mode })
+        let { modename, check_type, modenum } = fx.osu.get_mode_detail({ mode })
         //
         let temp_msg = await message.channel.send("Getting player info...")
-        let name = fx.osu.check_player({user_data: user_data, message: message, name: suffix.check, type: check_type,
-                                        prefix: prefix, lang: lang})
-        let user = await fx.osu.api.get_profile({name: name, mode: mode, ver: 1})
+        let name = fx.osu.check_player({
+            user_data: user_data, message: message, name: suffix.check, type: check_type,
+            prefix: prefix, lang: lang
+        })
+        let user = await fx.osu.api.get_profile({ name: name, mode: mode, ver: 1 })
         if (!user) {
-            message.channel.send(error_report({type: 'custom', err_message: errorLocalText.osu.player_null}))
+            message.channel.send(error_report({ type: 'custom', err_message: errorLocalText.osu.player_null }))
             return
         }
-        let {pfp_link} = fx.osu.get_profile_link({id: user.id, mode: mode, refresh: refresh})
+        let { pfp_link } = fx.osu.get_profile_link({ id: user.id, mode: mode, refresh: refresh })
         // Get top play
         temp_msg.edit("Caching beatmap info... (This could take up to 1 minute - a new mechanic to avoid request limited)")
         let embed_title = `Top osu!${modename} plays for ${user.username}`
         let best = []
         let display_top = [0, 5]
         if (suffix["-r"]) {
-            best = await fx.osu.api.get_top({name: name, mode: mode, limit: 100, no_bm: false, type: 'best', ver: 2})
-            best = best.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            best = await fx.osu.api.get_top({ name: name, mode: mode, limit: 100, no_bm: false, type: 'best', ver: 2 })
+            best = best.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
             embed_title = `Top osu!${modename} recent plays for ${user.username}`
         } else if (suffix["-m"]) {
-            let mod = fx.osu.mods_enum({mod: suffix["-m"][0]})
-            best = await fx.osu.api.get_top({name: name, mode: mode, limit: 100, no_bm: false, type: 'best', ver: 2})
-            best = best.filter(b => b.mod_num == mod.mod_num).sort((a,b) => b.pp - a.pp)
+            let mod = fx.osu.mods_enum({ mod: suffix["-m"][0] })
+            best = await fx.osu.api.get_top({ name: name, mode: mode, limit: 100, no_bm: false, type: 'best', ver: 2 })
+            best = best.filter(b => b.mod_num == mod.mod_num).sort((a, b) => b.pp - a.pp)
             embed_title = `Top osu!${modename} ${mod.mod_text.substr(1)} plays for ${user.username}`
         } else if (suffix["-g"]) {
             let g_pp = suffix["-g"][0]
-            best = await fx.osu.api.get_top({name: name, mode: mode, limit: 100, no_bm: false, type: 'best', ver: 2})
+            best = await fx.osu.api.get_top({ name: name, mode: mode, limit: 100, no_bm: false, type: 'best', ver: 2 })
             best = best.filter(b => b.pp >= g_pp)
             message.channel.send(`${user.username} has **${best.length}** play(s) above ${g_pp}pp`)
             return
         } else if (suffix["-s"]) {
             let map_name = suffix["-s"][0].replace("_", " ")
-            best = await fx.osu.api.get_top({name: name, mode: mode, limit: 100, no_bm: false, type: 'best', ver: 2})
-            best = best.filter(function(map) {
-                return map.title.toLowerCase().includes(map_name) || map.creator.toLowerCase().includes(map_name) || map.diff.toLowerCase().includes(map_name) 
+            best = await fx.osu.api.get_top({ name: name, mode: mode, limit: 100, no_bm: false, type: 'best', ver: 2 })
+            best = best.filter(function (map) {
+                return map.title.toLowerCase().includes(map_name) || map.creator.toLowerCase().includes(map_name) || map.diff.toLowerCase().includes(map_name)
                     || map.source.toLowerCase().includes(map_name) || map.artist.toLowerCase().includes(map_name)
             })
             if (best.length == 0) {
-                message.channel.send(error_report({type: 'custom', err_message: 'No search result found!'}))
+                message.channel.send(error_report({ type: 'custom', err_message: 'No search result found!' }))
                 return;
             }
             embed_title = `Top osu!${modename} "${map_name}" map plays for ${user.username}`
         } else if (suffix["-a"]) {
-            best = await fx.osu.api.get_top({name: name, mode: mode, limit: 100, no_bm: false, type: 'best', ver: 2})
-            best.sort(function (a,b) {
+            best = await fx.osu.api.get_top({ name: name, mode: mode, limit: 100, no_bm: false, type: 'best', ver: 2 })
+            best.sort(function (a, b) {
                 return b.acc - a.acc
             })
             embed_title = `Top osu!${modename} accuracy plays for ${user.username}`
         } else if (suffix["-c"]) {
-            best = await fx.osu.api.get_top({name: name, mode: mode, limit: 100, no_bm: false, type: 'best', ver: 2})
-            best.sort(function (a,b) {
+            best = await fx.osu.api.get_top({ name: name, mode: mode, limit: 100, no_bm: false, type: 'best', ver: 2 })
+            best.sort(function (a, b) {
                 return b.combo - a.combo
             })
             embed_title = `Top osu!${modename} combo plays for ${user.username}`
         } else {
-            best = await fx.osu.api.get_top({name: name, mode: mode, limit: 100, no_bm: false, type: 'best', ver: 2})
+            best = await fx.osu.api.get_top({ name: name, mode: mode, limit: 100, no_bm: false, type: 'best', ver: 2 })
         }
         if (suffix["-p"]) {
-            let p_value = suffix["-p"][0]?.split('-').map(num => Number(num)).sort((a,b) => a - b)
-            if (p_value?.length == 1) display_top = [p_value[0]-1, p_value[0]]
-            else display_top = [p_value[0]-1, p_value[1]]
-            if (p_value[0]-1 >= best.length || p_value[1]-1 >= best.length) {
-                message.channel.send(error_report({type: 'custom', err_message: 'One of the value exceeded the maximum length of the top play'}))
+            let p_value = suffix["-p"][0]?.split('-').map(num => Number(num)).sort((a, b) => a - b)
+            if (p_value?.length == 1) display_top = [p_value[0] - 1, p_value[0]]
+            else display_top = [p_value[0] - 1, p_value[1]]
+            if (p_value[0] - 1 >= best.length || p_value[1] - 1 >= best.length) {
+                message.channel.send(error_report({ type: 'custom', err_message: 'One of the value exceeded the maximum length of the top play' }))
                 return
             }
-        } else if (suffix["-page"]) {
-            display_top = [0, best.length]
+            embed_title = `Number ${p_value} osu!${modename} play for ${user.username}`
+            best = best.splice(display_top[0], display_top[1] - display_top[0])
         }
-        best = best.splice(display_top[0], display_top[1] - display_top[0])
-        temp_msg.delete()
         // Page function
-        async function load_page({page}) {
+        async function load_page({ page }) {
             let desc = ''
             let start = (page - 1) * 5
             for (let i = start; i < start + 5; i++) {
                 if (!best[i]) break
-                cache_beatmap_ID({message: message, beatmap_id: best[i].beatmap_id, mode: mode})
-                let parser = (modenum == 0) ? await fx.osu.precalc({beatmap_id: best[i].beatmap_id}) : ''
-                let {fcguess, mapcomplete, star} = await fx.osu.get_calc_pp({...best[i], parser: parser, mode: mode, lang: lang})
-                let score_overlay = fx.osu.ui.score({...best[i], star: star, fcguess: fcguess,
-                                                        mapcomplete: mapcomplete, type: 'top', a_mode: a_mode})
+                cache_beatmap_ID({ message: message, beatmap_id: best[i].beatmap_id, mode: mode })
+                let parser = await fx.osu.precalc({ beatmap_id: best[i].beatmap_id });
+                let countgeki = best[i].count_geki;
+                let count300 = best[i].count_300;
+                let { fcguess, mapcomplete, star } = await fx.osu.get_calc_pp({ ...best[i], parser: parser, mode: mode, lang: lang })
+                let score_overlay = fx.osu.ui.score({
+                    ...best[i], star: star, fcguess: '',
+                    type: 'top', a_mode: a_mode, countgeki, count300
+                })
                 desc += score_overlay
             }
             return desc
         }
+        temp_msg.delete()
         const embed = new MessageEmbed()
-        .setAuthor(embed_title)
-        .setThumbnail(pfp_link)
-        .setColor(embed_color)
-        .setFooter(`{page}`);
-        fx.general.page_system({message: message, embed: embed, update_func: load_page,
-                                max_duration: Math.ceil(best.length / 5) * 30000, max_page: Math.ceil(best.length / 5)})
+            .setAuthor({ name: embed_title })
+            .setThumbnail(pfp_link)
+            .setColor(embed_color)
+            .setFooter({ text: `{page}` });
+        fx.general.page_system({
+            message: message, embed: embed, update_func: load_page,
+            max_duration: Math.ceil(best.length / 5) * 30000, max_page: Math.ceil(best.length / 5)
+        })
     } catch (err) {
-        message.channel.send(error_report({type: 'normal', err_message: err.stack.toString()}))
+        message.channel.send(error_report({ type: 'normal', err_message: err.stack.toString() }))
+        await error_send({ message: message, e: err });
     }
 }
 
 /** 
  * @param {{message: Message}} 
  */
-async function recent({message, embed_color, refresh, lang, prefix}) {
+async function recent({ message, embed_color, refresh, lang, prefix }) {
     try {
         let msg = message.content.toLowerCase()
-        const errorLocalText = getLocalText({lang: lang}).errors
-        let suffix = fx.general.check_suffix({check_msg: msg, two_arg: true, suffix: [{"suffix": "-b", "v_count": 0},
-                                                                                    {"suffix": "-l", "v_count": 0},
-                                                                                    {"suffix": "-p", "v_count": 1},
-                                                                                    ...check_mode_suffix,
-                                                                                    ...check_server_suffix]})
+        const errorLocalText = getLocalText({ lang: lang }).errors
+        let suffix = fx.general.check_suffix({
+            check_msg: msg, two_arg: true, suffix: [{ "suffix": "-b", "v_count": 0 },
+            { "suffix": "-l", "v_count": 0 },
+            { "suffix": "-p", "v_count": 1 },
+            ...check_mode_suffix,
+            ...check_server_suffix]
+        })
         // Set the correct mode
-        let mode = set_mode({suffix: suffix})
+        let mode = set_mode({ suffix: suffix })
         //
-        let {modename, check_type, modenum, a_mode} = fx.osu.get_mode_detail({mode})
-        let name = fx.osu.check_player({user_data: user_data, message: message, name: suffix.check, type: check_type,
-                                        prefix: prefix, lang: lang})
+        let { modename, check_type, modenum, a_mode } = fx.osu.get_mode_detail({ mode })
+        let name = fx.osu.check_player({
+            user_data: user_data, message: message, name: suffix.check, type: check_type,
+            prefix: prefix, lang: lang
+        })
         if (suffix["-b"]) {
             let temp_msg = await message.channel.send("Getting player info...")
-            let user = await fx.osu.api.get_profile({name: name, mode: mode, ver: 1})
+            let user = await fx.osu.api.get_profile({ name: name, mode: mode, ver: 1 })
             if (!user) {
-                message.channel.send(error_report({type: 'custom', err_message: errorLocalText.osu.player_null}))
+                message.channel.send(error_report({ type: 'custom', err_message: errorLocalText.osu.player_null }))
                 return
             }
             temp_msg.edit("Caching beatmap info... (This could take up to 1 minute - a new mechanic to avoid request limited)")
-            let best = await fx.osu.api.get_top({name: name, mode: mode, limit: 100, type: 'best', ver: 2})
-            best.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-            cache_beatmap_ID({message: message, beatmap_id: best[0].beatmap_id, mode: mode})
-            let {pfp_link} = fx.osu.get_profile_link({id: user.id, mode: mode, refresh: refresh})
-            let parser = (modenum == 0) ? await fx.osu.precalc({beatmap_id: best[0].beatmap_id}) : ''
-            let {fcguess, mapcomplete, star} = await fx.osu.get_calc_pp({...best[0], parser: parser, mode: mode, lang: lang})
-            let score_overlay = fx.osu.ui.score({...best[0], star: star, fcguess: fcguess,
-                                                    mapcomplete: mapcomplete, type: 'top', a_mode: a_mode})
+            let best = await fx.osu.api.get_top({ name: name, mode: mode, limit: 100, type: 'best', ver: 2 })
+            best.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            cache_beatmap_ID({ message: message, beatmap_id: best[0].beatmap_id, mode: mode })
+            let { pfp_link } = fx.osu.get_profile_link({ id: user.id, mode: mode, refresh: refresh })
+            let parser = await fx.osu.precalc({ beatmap_id: best[0].beatmap_id });
+            let { fcguess, mapcomplete, star } = await fx.osu.get_calc_pp({ ...best[0], parser: parser, mode: mode, lang: lang })
+            let countgeki = best[0].count_geki;
+            let count300 = best[0].count_300;
+            let score_overlay = fx.osu.ui.score({
+                ...best[0], star: star, fcguess: fcguess,
+                mapcomplete: mapcomplete, type: 'top', a_mode: a_mode, countgeki, count300
+            })
             temp_msg.delete()
-            const embed = new MessageEmbed()    
-            .setAuthor(`Best osu!${modename} recent plays for ${user.username}`, pfp_link)
-            .setThumbnail(`https://assets.ppy.sh/beatmaps/${best[0].beatmapset_id}/covers/list@2x.jpg`)
-            .setColor(embed_color)
-            .setDescription(score_overlay);
-            message.channel.send({embed});
+            const embed = new MessageEmbed()
+                .setAuthor({ name: `Best osu!${modename} recent plays for ${user.username}`, iconURL: pfp_link })
+                .setThumbnail(`https://assets.ppy.sh/beatmaps/${best[0].beatmapset_id}/covers/list@2x.jpg`)
+                .setColor(embed_color)
+                .setDescription(score_overlay);
+            message.channel.send({ embeds: [embed] });
         } else if (suffix['-l']) {
             let temp_msg = await message.channel.send("Getting player info...")
-            let user = await fx.osu.api.get_profile({name: name, mode: mode, ver: 1})
+            let user = await fx.osu.api.get_profile({ name: name, mode: mode, ver: 1 })
             if (!user) {
-                message.channel.send(error_report({type: 'custom', err_message: errorLocalText.osu.player_null}))
+                message.channel.send(error_report({ type: 'custom', err_message: errorLocalText.osu.player_null }))
                 return
             }
             temp_msg.edit("Caching beatmap info... (This could take up to 1 minute - a new mechanic to avoid request limited)")
-            let {pfp_link} = fx.osu.get_profile_link({id: user.id, mode: mode, refresh: refresh})
-            let recents = await fx.osu.api.get_top({name: name, mode: mode, limit: 50, type: 'recent', ver: 2})
-            if (recents.length < 1) message.channel.send(error_report({type: 'custom', err_message: 'No recent plays by this player'}))
-            async function load_page({page}) {
+            let { pfp_link } = fx.osu.get_profile_link({ id: user.id, mode: mode, refresh: refresh })
+            let recents = await fx.osu.api.get_top({ name: name, mode: mode, limit: 50, type: 'recent', ver: 2 })
+            if (recents.length < 1) message.channel.send(error_report({ type: 'custom', err_message: 'No recent plays by this player' }))
+            async function load_page({ page }) {
                 let desc = ''
                 let start = (page - 1) * 5
                 for (let i = start; i < start + 5; i++) {
                     if (!recents[i]) break
-                    cache_beatmap_ID({message: message, beatmap_id: recents[i].beatmap_id, mode: mode})
-                    let parser = (modenum == 0) ? await fx.osu.precalc({beatmap_id: recents[i].beatmap_id}) : ''
-                    let {fcguess, mapcomplete, star, pp} = await fx.osu.get_calc_pp({...recents[i], parser: parser, mode: mode, lang: lang, recent: true})
-                    let score_overlay = fx.osu.ui.score({...recents[i], mapcomplete: mapcomplete, star: star, fcguess: fcguess, pp: pp, type: 'top'
-                                                        , a_mode: a_mode})
+                    cache_beatmap_ID({ message: message, beatmap_id: recents[i].beatmap_id, mode: mode })
+                    let parser = await fx.osu.precalc({ beatmap_id: recents[i].beatmap_id });
+                    let countgeki = recents[i].count_geki;
+                    let count300 = recents[i].count_300;
+                    let { fcguess, mapcomplete, star, pp } = await fx.osu.get_calc_pp({ ...recents[i], parser: parser, mode: mode, lang: lang, recent: true })
+                    let score_overlay = fx.osu.ui.score({
+                        ...recents[i], mapcomplete: mapcomplete, star: star, fcguess: fcguess, pp: pp, type: 'top'
+                        , a_mode: a_mode, countgeki, count300
+                    })
                     desc += score_overlay
                 }
                 return desc
             }
             temp_msg.delete()
             const embed = new MessageEmbed()
-            .setAuthor(`osu!${modename} recent plays for ${user.username}`)
-            .setThumbnail(pfp_link)
-            .setColor(embed_color)
-            .setFooter(`{page}`);
-            fx.general.page_system({message: message, embed: embed, update_func: load_page,
-                                    max_duration: Math.ceil(recents.length / 5) * 30000, max_page: Math.ceil(recents.length / 5)})
+                .setAuthor({ name: `osu!${modename} recent plays for ${user.username}` })
+                .setThumbnail(pfp_link)
+                .setColor(embed_color)
+                .setFooter({ text: `{page}` });
+            fx.general.page_system({
+                message: message, embed: embed, update_func: load_page,
+                max_duration: Math.ceil(recents.length / 5) * 30000, max_page: Math.ceil(recents.length / 5)
+            })
         } else {
-            let user = await fx.osu.api.get_profile({name: name, mode: mode, ver: 1})
+            let user = await fx.osu.api.get_profile({ name: name, mode: mode, ver: 1 })
             if (!user) {
-                message.channel.send(error_report({type: 'custom', err_message: errorLocalText.osu.player_null}))
+                message.channel.send(error_report({ type: 'custom', err_message: errorLocalText.osu.player_null }))
                 return
             }
-            let recents = await fx.osu.api.get_top({name: name, mode: mode, limit: 1, type: 'recent', ver: 2})
+            let recents = await fx.osu.api.get_top({ name: name, mode: mode, limit: 1, type: 'recent', ver: 2 })
             if (!recents.length) {
-                message.channel.send(error_report({type: 'custom', err_message: errorLocalText.osu.no_recent_play}))
+                message.channel.send(error_report({ type: 'custom', err_message: errorLocalText.osu.no_recent_play }))
                 return
             }
-            let {pfp_link} = fx.osu.get_profile_link({id: user.id, mode: mode, refresh: refresh})
-            cache_beatmap_ID({message: message, beatmap_id: recents[0].beatmap_id, mode: mode})
-            let parser = (modenum == 0) ? await fx.osu.precalc({beatmap_id: recents[0].beatmap_id}) : ''
-            let {fcguess, mapcomplete, star, pp} = await fx.osu.get_calc_pp({...recents[0], parser: parser, mode: mode, lang: lang, recent: true})
-            let score_overlay = fx.osu.ui.score({...recents[0], star: star, fcguess: fcguess, pp: pp, type: 'recent', a_mode: a_mode})
+            let { pfp_link } = fx.osu.get_profile_link({ id: user.id, mode: mode, refresh: refresh })
+            cache_beatmap_ID({ message: message, beatmap_id: recents[0].beatmap_id, mode: mode })
+            let parser = await fx.osu.precalc({ beatmap_id: recents[0].beatmap_id });
+            let { fcguess, mapcomplete, star, pp } = await fx.osu.get_calc_pp({ ...recents[0], parser: parser, mode: mode, lang: lang, recent: true })
+            let countgeki = recents[0].count_geki;
+            let count300 = recents[0].count_300;
+            let score_overlay = fx.osu.ui.score({ ...recents[0], star: star, fcguess: fcguess, pp: pp, type: 'recent', a_mode: a_mode, countgeki, count300 })
             let line4 = recents[0].time_ago
             if (recents[0].rank == 'F') line4 = `${mapcomplete} • ${line4}`;
             const embed = new MessageEmbed()
-            .setAuthor(`Most recent osu! ${modename} play for ${user.username}:`, pfp_link)
-            .setThumbnail(`https://assets.ppy.sh/beatmaps/${recents[0].beatmapset_id}/covers/list@2x.jpg`)
-            .setColor(embed_color)
-            .setDescription(score_overlay)
-            .setFooter(line4);
-            message.channel.send({embed})
+                .setAuthor({ name: `Most recent osu! ${modename} play for ${user.username}:`, iconURL: pfp_link })
+                .setThumbnail(`https://assets.ppy.sh/beatmaps/${recents[0].beatmapset_id}/covers/list@2x.jpg`)
+                .setColor(embed_color)
+                .setDescription(score_overlay)
+                .setFooter({ text: line4 });
+            message.channel.send({ embeds: [embed] })
         }
     } catch (err) {
-        message.channel.send(error_report({type: 'normal', err_message: err.stack.toString()}))
+        message.channel.send(error_report({ type: 'normal', err_message: err.stack.toString() }))
+        await error_send({ message: message, e: err });
     }
 }
 
 /** 
  * @param {{message: Message}} 
  */
-async function compare({message, embed_color, refresh, lang, prefix}) {
+async function compare({ message, embed_color, refresh, lang, prefix }) {
     try {
         let msg = message.content.toLowerCase()
         let command = msg.split(' ')[0]
         if (fx.general.cmd_cooldown.cooldown[message.author.id] !== undefined && fx.general.cmd_cooldown.cooldown[message.author.id].indexOf(command) !== -1) {
-            message.channel.send(error_report({type: 'custom', err_message: 'You need to wait 3 seconds before using this again!'}))
+            message.channel.send(error_report({ type: 'custom', err_message: 'You need to wait 3 seconds before using this again!' }))
             return;
         }
-        fx.general.cmd_cooldown.set({message: message, cmd: command, time: 3000})
-        let suffix = fx.general.check_suffix({check_msg: msg, two_arg: true, suffix: [{"suffix": "-b", "v_count": 0},
-                                                                                    {"suffix": "-l", "v_count": 0},
-                                                                                    ...check_mode_suffix,
-                                                                                    ...check_server_suffix]})
-        let beatmap_cache = beatmapID_cache.find(c => c.channel == message.channel.id)
-        if (!beatmap_cache)  {
-            message.channel.send(error_report({type: 'custom', err_message: "No play found in this channel"}))
-            return;
+        fx.general.cmd_cooldown.set({ message: message, cmd: command, time: 3000 })
+        let suffix = fx.general.check_suffix({
+            check_msg: msg, two_arg: true, suffix: [{ "suffix": "-b", "v_count": 0 },
+            { "suffix": "-l", "v_count": 0 },
+            ...check_mode_suffix,
+            ...check_server_suffix]
+        })
+
+        const beatmaps = [];
+        const modes = [];
+        if (message.type == 'REPLY') {
+            const replyMessage = await message.channel.messages.fetch(message.reference.messageId);
+            if (replyMessage.embeds.length > 0) {
+                replyMessage.embeds.forEach(embed => {
+                    if (embed.author && embed.author.url && embed.author.url.startsWith("https://osu.ppy.sh/b")) {
+                        if (replyMessage.author.id == "292315507892420608" || replyMessage.author.id == "289066747443675143") {
+                            if (replyMessage.content.length > 1) {
+                                if (replyMessage.content.includes("Standard")) {
+                                    modes.push("std");
+                                } else if (replyMessage.content.includes("Mania")) {
+                                    modes.push("mania");
+                                } else if (replyMessage.content.includes("Catch")) {
+                                    modes.push("ctb");
+                                } else {
+                                    modes.push("taiko");
+                                }
+                            } else {
+                                if (embed.author.name.includes("Standard")) {
+                                    modes.push("std");
+                                } else if (embed.author.name.includes("Mania")) {
+                                    modes.push("mania");
+                                } else if (embed.author.name.includes("Catch")) {
+                                    modes.push("ctb");
+                                } else {
+                                    modes.push("taiko");
+                                }
+                            }
+                        } else {
+                            if (embed.author.name.includes("Standard")) {
+                                modes.push("std");
+                            } else if (embed.author.name.includes("Mania")) {
+                                modes.push("mania");
+                            } else if (embed.author.name.includes("Catch")) {
+                                modes.push("ctb");
+                            } else {
+                                modes.push("taiko");
+                            }
+                        }
+                        bmapId = embed.author.url.replace("https://osu.ppy.sh/b/", "")
+                        beatmaps.push(bmapId);
+                    } else if (embed.description && embed.description.includes("https://osu.ppy.sh/b/")) {
+                        if (embed.author.name.includes("Standard")) {
+                            modes.push("std");
+                        } else if (embed.author.name.includes("Mania")) {
+                            modes.push("mania");
+                        } else if (embed.author.name.includes("Catch")) {
+                            modes.push("ctb");
+                        } else {
+                            modes.push("taiko");
+                        }
+                        let text = embed.description.match(/\(https:\/\/osu\.ppy\.sh\/b\/.*\)/i).toString().split(")");
+                        bmapId = text[0].replace("(https://osu.ppy.sh/b/", "");
+                        beatmaps.push(bmapId);
+                    }
+                })
+            }
+        } else {
+            const messages = await message.channel.messages.fetch({ limit: 50 });
+            messages.map(message => {
+                if (message.embeds.length > 0) {
+                    message.embeds.forEach(embed => {
+                        if (embed.author && embed.author.url && embed.author.url.startsWith("https://osu.ppy.sh/b")) {
+                            if (message.author.id == "292315507892420608" || message.author.id == "289066747443675143") {
+                                if (message.content.length > 0) {
+                                    if (message.content.includes("Standard")) {
+                                        modes.push("std");
+                                    } else if (message.content.includes("Mania")) {
+                                        modes.push("mania");
+                                    } else if (message.content.includes("Catch")) {
+                                        modes.push("ctb");
+                                    } else {
+                                        modes.push("taiko");
+                                    }
+                                } else {
+                                    if (embed.author.name.includes("Standard")) {
+                                        modes.push("std");
+                                    } else if (embed.author.name.includes("Mania")) {
+                                        modes.push("mania");
+                                    } else if (embed.author.name.includes("Catch")) {
+                                        modes.push("ctb");
+                                    } else {
+                                        modes.push("taiko");
+                                    }
+                                }
+                            } else {
+                                if (embed.author.name.includes("Standard")) {
+                                    modes.push("std");
+                                } else if (embed.author.name.includes("Mania")) {
+                                    modes.push("mania");
+                                } else if (embed.author.name.includes("Catch")) {
+                                    modes.push("ctb");
+                                } else if (embed.author.name.includes("Taiko")) {
+                                    modes.push("taiko");
+                                } else if (embed.fields.length > 0) {
+                                    if (embed.fields[0].value.includes("std")) {
+                                        modes.push("std");
+                                    } else if (embed.fields[0].value.includes("mania")) {
+                                        modes.push("mania");
+                                    } else if (embed.fields[0].value.includes("ctb")) {
+                                        modes.push("ctb");
+                                    } else {
+                                        modes.push("taiko");
+                                    }
+                                } else {
+                                    modes.push("std");
+                                }
+                            }
+                            bmapId = embed.author.url.replace("https://osu.ppy.sh/b/", "")
+                            beatmaps.push(bmapId);
+                        } else if (embed.description && embed.description.includes("https://osu.ppy.sh/b/")) {
+                            if (embed.author.name.includes("Standard")) {
+                                modes.push("std");
+                            } else if (embed.author.name.includes("Mania")) {
+                                modes.push("mania");
+                            } else if (embed.author.name.includes("Catch")) {
+                                modes.push("ctb");
+                            } else {
+                                modes.push("taiko");
+                            }
+                            let text = embed.description.match(/\(https:\/\/osu\.ppy\.sh\/b\/.*\)/i).toString().split(")");
+                            bmapId = text[0].replace("(https://osu.ppy.sh/b/", "");
+                            beatmaps.push(bmapId);
+                        }
+                    })
+                }
+            })
         }
-        let beatmap_id = beatmap_cache.beatmap_id
-        // Set the correct mode
-        let mode_type = beatmap_cache.mode.split("-")
-        let mode = set_mode({suffix: suffix, default_a_mode: mode_type[1], default_check_type: mode_type[0]})
+
+        if (beatmaps.length == 0) return message.channel.send("No maps found in this channel.");
+
+        let beatmap_id = Number(beatmaps[0])
+        let mode = set_mode({ suffix: suffix, default_a_mode: modes[0], default_check_type: "bancho" })
         //
-        let {modename, check_type, modenum, a_mode} = fx.osu.get_mode_detail({mode: mode})
-        let name = fx.osu.check_player({user_data: user_data, message: message, name: suffix.check, type: check_type,
-                                        prefix: prefix, lang: lang})
-        let score = await fx.osu.api.get_score({name: name, mode: mode, beatmap_id: beatmap_id})
-        score.sort(function (a,b) {
+        let { modename, check_type, modenum, a_mode } = fx.osu.get_mode_detail({ mode: mode })
+        let name = fx.osu.check_player({
+            user_data: user_data, message: message, name: suffix.check, type: check_type,
+            prefix: prefix, lang: lang
+        });
+        let score = await fx.osu.api.get_score({ name: name, mode: mode, beatmap_id: beatmap_id })
+        score.sort(function (a, b) {
             a1 = Number(a.pp)
             b1 = Number(b.pp)
             return b1 - a1
         })
         if (score.length == 0) {
-            message.channel.send(error_report({type: 'custom', err_message: `${name} didn't play this map! (${mode})`}))
+            message.channel.send(error_report({ type: 'custom', err_message: `${name} didn't play this map! (${mode})` }))
             return;
         }
-        let beatmap = await fx.osu.api.get_beatmap({beatmap_id: beatmap_id, mode: mode})
-        let parser = (modenum == 0) ? await fx.osu.precalc({beatmap_id: beatmap_id}) : null
-        async function load_page({page}) {
+        let beatmap = await fx.osu.api.get_beatmap({ beatmap_id: beatmap_id, mode: mode })
+        let parser = await fx.osu.precalc({ beatmap_id: beatmap_id });
+        async function load_page({ page }) {
             let desc = ''
             let start = (page - 1) * 5
             for (let i = start; i < start + 5; i++) {
                 if (!score[i]) break
                 let unrankedpp = '';
                 if (modenum == 0 && beatmap[0].approvalStatus == "Loved") {
-                    let comparepp = fx.osu.get_calc_pp({...score[i], ...beatmap[0], mode: mode, parser: parser, lang: lang})
+                    let comparepp = fx.osu.get_calc_pp({ ...score[i], ...beatmap[0], mode: mode, parser: parser, lang: lang })
                     unrankedpp = `(Loved: ${Number(comparepp.pp.total).toFixed(2)}pp)`
                 }
-                let {fcguess, mapcomplete, star} = await fx.osu.get_calc_pp({...score[i], ...beatmap[0], 
-                                                                            parser: parser, mode: mode, lang: lang})
-                desc += fx.osu.ui.score({...score[i], ...beatmap[0], star: star, fcguess: fcguess, type: 'compare', top: i+1, a_mode: a_mode})
+                let { fcguess, mapcomplete, star } = await fx.osu.get_calc_pp({
+                    ...score[i], ...beatmap[0],
+                    parser: parser, mode: mode, lang: lang
+                })
+                let countgeki = score[i].count_geki;
+                let count300 = score[i].count_300;
+                desc += fx.osu.ui.score({ ...score[i], ...beatmap[0], star: star, fcguess: fcguess, type: 'compare', top: i + 1, a_mode: a_mode, countgeki, count300 })
             }
             return desc
         }
         const embed = new MessageEmbed()
-        .setAuthor(`Top osu!${modename} plays for ${score[0].username} on ${beatmap[0].title} [${beatmap[0].diff}]`, undefined, `https://osu.ppy.sh/b/${beatmap_id}`)
-        .setThumbnail(`https://b.ppy.sh/thumb/${beatmap[0].beatmapset_id}l.jpg`)
-        .setColor(embed_color)
-        .setFooter(`{page}`)
-        fx.general.page_system({message: message, embed: embed, update_func: load_page, 
-                                max_duration: Math.ceil(score.length / 5) * 30000, max_page: Math.ceil(score.length / 5)})
+            .setAuthor({ name: `Top osu!${modename} plays for ${score[0].username} on ${beatmap[0].title} [${beatmap[0].diff}]`, iconURL: undefined, url: `https://osu.ppy.sh/b/${beatmap_id}` })
+            .setThumbnail(`https://b.ppy.sh/thumb/${beatmap[0].beatmapset_id}l.jpg`)
+            .setColor(embed_color)
+            .setFooter({ text: `{page}` })
+        fx.general.page_system({
+            message: message, embed: embed, update_func: load_page,
+            max_duration: Math.ceil(score.length / 5) * 30000, max_page: Math.ceil(score.length / 5)
+        })
     } catch (err) {
-        message.channel.send(error_report({type: 'normal', err_message: err.stack.toString()}))
+        message.reply("User not found!")
     }
 }
 
 /** 
  * @param {{message: Message}} 
  */
-async function scores({message, embed_color, refresh, lang, prefix}) {
+async function scores({ message, embed_color, refresh, lang, prefix }) {
     try {
         let msg = message.content.toLowerCase()
         let command = msg.split(' ')[0]
         if (fx.general.cmd_cooldown.cooldown[message.author.id] !== undefined && fx.general.cmd_cooldown.cooldown[message.author.id].indexOf(command) !== -1) {
-            message.channel.send(error_report({type: 'custom', err_message: 'You need to wait 3 seconds before using this again!'}))
+            message.channel.send(error_report({ type: 'custom', err_message: 'You need to wait 3 seconds before using this again!' }))
             return;
         }
-        fx.general.cmd_cooldown.set({message: message, cmd: command, time: 3000})
+        fx.general.cmd_cooldown.set({ message: message, cmd: command, time: 3000 })
         let beatmap_id, mode = "bancho-";
         if (msg.includes("https://osu.ppy.sh/b/")) {
             let a_mode_list = ['std', 'taiko', 'ctb', 'mania']
             let args = msg.split('/')[4].split(' ')[0].split('?')
             beatmap_id = args[0]
-            mode += args[1] ? a_mode_list[args[1].substr(-1)] : 'std'
+            mode += args[1] ? a_mode_list[args[1].substring(-1)] : 'std'
         } else if (msg.includes("https://osu.ppy.sh/beatmapsets/")) {
-            let a_mode_list = {"osu": "std", "taiko": "taiko",
-                                "fruits": "ctb", "mania": "mania"}
+            let a_mode_list = {
+                "osu": "std", "taiko": "taiko",
+                "fruits": "ctb", "mania": "mania"
+            }
             let args = msg.split('#')[1].split('/')
             beatmap_id = args[1].split(" ")[0]
             mode += a_mode_list[args[0]]
         }
         let link = msg.split(' ').find(l => l.includes("https://osu.ppy.sh/")).toString().replace(',', '')
-        let suffix = fx.general.check_suffix({check_msg: msg, two_arg: false, 
-                                            suffix: [{"suffix": link, v_count: 0}]})
+        let suffix = fx.general.check_suffix({
+            check_msg: msg, two_arg: false,
+            suffix: [{ "suffix": link, v_count: 0 }]
+        })
         //
-        let {modenum, modename, a_mode, check_type} = fx.osu.get_mode_detail({mode: mode})
-        let name = fx.osu.check_player({user_data: user_data, message: message, name: suffix.check, type: check_type,
-            prefix: prefix, lang: lang})
-        let score = await fx.osu.api.get_score({name: name, mode: mode, beatmap_id: beatmap_id})
-        let {profile_link} = fx.osu.get_profile_link({id: score[0].user_id, refresh: refresh, mode: mode})
-        score.sort(function (a,b) {
+        let { modenum, modename, a_mode, check_type } = fx.osu.get_mode_detail({ mode: mode })
+        let name = fx.osu.check_player({
+            user_data: user_data, message: message, name: suffix.check, type: check_type,
+            prefix: prefix, lang: lang
+        })
+        let score = await fx.osu.api.get_score({ name: name, mode: mode, beatmap_id: beatmap_id })
+        let { profile_link } = fx.osu.get_profile_link({ id: score[0].user_id, refresh: refresh, mode: mode })
+        score.sort(function (a, b) {
             a1 = Number(a.pp)
             b1 = Number(b.pp)
             return b1 - a1
         })
         if (score.length == 0) {
-            message.channel.send(error_report({type: 'custom', err_message: `${name} didn't play this map! (${mode})`}))
+            message.channel.send(error_report({ type: 'custom', err_message: `${name} didn't play this map! (${mode})` }))
             return;
         }
-        let beatmap = await fx.osu.api.get_beatmap({beatmap_id: beatmap_id, mode: mode})
-        let parser = (modenum == 0) ? await fx.osu.precalc({beatmap_id: beatmap_id}) : null
-        async function load_page({page}) {
+        let beatmap = await fx.osu.api.get_beatmap({ beatmap_id: beatmap_id, mode: mode })
+        let parser = await fx.osu.precalc({ beatmap_id: beatmap_id });
+        async function load_page({ page }) {
             let desc = `**Top osu!${modename} plays for [${score[0].username}](${profile_link}) on [${beatmap[0].title}](https://osu.ppy.sh/b/${beatmap_id})**\n\n`
             let start = (page - 1) * 5
             for (let i = start; i < start + 5; i++) {
                 if (!score[i]) break
-                cache_beatmap_ID({message: message, beatmap_id: beatmap_id, mode: mode})
+                cache_beatmap_ID({ message: message, beatmap_id: beatmap_id, mode: mode })
                 let unrankedpp = '';
                 if (modenum == 0 && beatmap[0].approvalStatus == "Loved") {
-                    let comparepp = fx.osu.get_calc_pp({...score[i], ...beatmap[0], mode: mode, parser: parser, lang: lang})
+                    let comparepp = fx.osu.get_calc_pp({ ...score[i], ...beatmap[0], mode: mode, parser: parser, lang: lang })
                     unrankedpp = `(Loved: ${Number(comparepp.pp.total).toFixed(2)}pp)`
                 }
-                let {fcguess, mapcomplete, star} = await fx.osu.get_calc_pp({...score[i], ...beatmap[0], 
-                                                                            parser: parser, mode: mode, lang: lang})
-                desc += fx.osu.ui.score({...score[i], ...beatmap[0], star: star, fcguess: fcguess, type: 'compare', top: i+1, a_mode: a_mode})
+                let { fcguess, mapcomplete, star } = await fx.osu.get_calc_pp({
+                    ...score[i], ...beatmap[0],
+                    parser: parser, mode: mode, lang: lang
+                })
+                desc += fx.osu.ui.score({ ...score[i], ...beatmap[0], star: star, fcguess: fcguess, type: 'compare', top: i + 1, a_mode: a_mode })
             }
             return desc
         }
         const embed = new MessageEmbed()
-        .setThumbnail(`https://b.ppy.sh/thumb/${beatmap[0].beatmapset_id}l.jpg`)
-        .setColor(embed_color)
-        .setFooter(`{page}`)
-        fx.general.page_system({message: message, embed: embed, update_func: load_page,
-                                max_duration: Math.ceil(score.length / 5) * 30000,  max_page: Math.ceil(score.length / 5)})
+            .setThumbnail(`https://b.ppy.sh/thumb/${beatmap[0].beatmapset_id}l.jpg`)
+            .setColor(embed_color)
+            .setFooter({ text: `{page}` })
+        fx.general.page_system({
+            message: message, embed: embed, update_func: load_page,
+            max_duration: Math.ceil(score.length / 5) * 30000, max_page: Math.ceil(score.length / 5)
+        })
     } catch (err) {
-        message.channel.send(error_report({type: 'normal', err_message: err.stack.toString()}))
+        message.channel.send(error_report({ type: 'normal', err_message: err.stack.toString() }))
+        await error_send({ message: message, e: err });
     }
 }
 
 /** 
  * @param {{message: Message}} 
  */
-async function map({message, embed_color, refresh, lang, prefix}) {
+async function map({ message, embed_color, refresh, lang, prefix }) {
     try {
         let msg = message.content.toLowerCase()
         let command = msg.split(' ')[0]
         if (fx.general.cmd_cooldown.cooldown[message.author.id] !== undefined && fx.general.cmd_cooldown.cooldown[message.author.id].indexOf(command) !== -1) {
-            message.channel.send(error_report({type: 'custom', err_message: 'You need to wait 3 seconds before using this again!'}))
+            message.channel.send(error_report({ type: 'custom', err_message: 'You need to wait 3 seconds before using this again!' }))
             return;
         }
-        fx.general.cmd_cooldown.set({message: message, cmd: command, time: 3000})
-        let suffix = fx.general.check_suffix({check_msg: msg, two_arg: false, suffix: [{"suffix": "-l", v_count: 0}]})
+        fx.general.cmd_cooldown.set({ message: message, cmd: command, time: 3000 })
+        let suffix = fx.general.check_suffix({ check_msg: msg, two_arg: false, suffix: [{ "suffix": "-l", v_count: 0 }] })
         let beatmap_cache = beatmapID_cache.find(c => c.channel == message.channel.id)
-        if (!beatmap_cache)  message.channel.send(error_report({type: 'custom', err_message: "No play found in this channel"}))
+        if (!beatmap_cache) message.channel.send(error_report({ type: 'custom', err_message: "No play found in this channel" }))
         let mode = beatmap_cache.mode
         let beatmap_id = beatmap_cache.beatmap_id
         let mods = suffix.check ? suffix.check.replace('+', '') : 'NM';
-        let {modenum, modename, a_mode, check_type} = fx.osu.get_mode_detail({mode: mode})
-        let {mod_num, mod_text} = fx.osu.mods_enum({mod: mods})
+        let { modenum, modename, a_mode, check_type } = fx.osu.get_mode_detail({ mode: mode })
+        let { mod_num, mod_text } = fx.osu.mods_enum({ mod: mods })
         if (suffix['-l']) {
-            let scores = await fx.osu.api.get_score({name: undefined, mode: mode, beatmap_id: beatmap_id, limit: 100})
-            let beatmap = await fx.osu.api.get_beatmap({beatmap_id: beatmap_id, mode: mode})
+            let scores = await fx.osu.api.get_score({ name: undefined, mode: mode, beatmap_id: beatmap_id, limit: 100 })
+            let beatmap = await fx.osu.api.get_beatmap({ beatmap_id: beatmap_id, mode: mode })
             let parser;
-            if (modenum == 0) parser = await fx.osu.precalc({beatmap_id: beatmap_id}) 
-            cache_beatmap_ID({message: message, beatmap_id: beatmap_id, mode: mode})
-            async function load_page({page}) {
+            parser = await fx.osu.precalc({ beatmap_id: beatmap_id });
+            cache_beatmap_ID({ message: message, beatmap_id: beatmap_id, mode: mode })
+            async function load_page({ page }) {
                 let desc = ''
                 let start = (page - 1) * 5
                 for (let i = start; i < start + 5; i++) {
-                    let {fcguess, mapcomplete, star} = await fx.osu.get_calc_pp({...scores[i], parser: parser, mode: mode, lang: lang})
-                    desc += fx.osu.ui.score({...scores[i], title: scores[i].username, star: star, fcguess: fcguess, type: 'map', top: i+1, a_mode: a_mode})
+                    let { fcguess, mapcomplete, star } = await fx.osu.get_calc_pp({ ...scores[i], parser: parser, mode: mode, lang: lang })
+                    desc += fx.osu.ui.score({ ...scores[i], title: scores[i].username, star: star, fcguess: '', type: 'map', fc: beatmap[0].fc, top: i + 1, a_mode: a_mode })
                 }
                 return desc
             }
             const embed = new MessageEmbed()
-            .setAuthor(`Top osu!${modename} Plays for ${beatmap[0].title}`, undefined, undefined,`https://osu.ppy.sh/b/${beatmap_id}`)
-            .setThumbnail(`https://b.ppy.sh/thumb/${beatmap[0].beatmapset_id}l.jpg`)
-            .setColor(embed_color)
-            .setFooter(`{page}`)
-            fx.general.page_system({message: message, embed: embed, update_func: load_page,
-                                    max_duration: Math.ceil(score.length / 5) * 30000, max_page: Math.ceil(scores.length / 5)})
+                .setAuthor({ name: `Top osu!${modename} Plays for ${beatmap[0].title} (${beatmap[0].diff})`, iconURL: undefined, url: `https://osu.ppy.sh/b/${beatmap_id}` })
+                .setThumbnail(`https://b.ppy.sh/thumb/${beatmap[0].beatmapset_id}l.jpg`)
+                .setColor(embed_color)
+                .setFooter({ text: `{page}` })
+            fx.general.page_system({
+                message: message, embed: embed, update_func: load_page,
+                max_duration: Math.ceil(score.length / 5) * 30000, max_page: Math.ceil(scores.length / 5)
+            })
         } else {
-            cache_beatmap_ID({message: message, beatmap_id: beatmap_id, mode: mode})
-            let map = await fx.osu.api.get_beatmap({beatmap_id: beatmap_id, limit: 1, mode: mode})
-            let creator_user = await fx.osu.api.get_profile({name: map[0].creator, mode: mode, ver: 1})
-            let parser = (modenum == 0) ? await fx.osu.precalc({beatmap_id: beatmap_id}) : ''
-            let embed = fx.osu.ui.beatmap({map: map[0], parser: parser, mode: mode, mod_num: mod_num, mod_text: mod_text,
-                                            creator_user: creator_user, embed_color: embed_color})
-            message.channel.send({embed});
+            cache_beatmap_ID({ message: message, beatmap_id: beatmap_id, mode: mode })
+            let map = await fx.osu.api.get_beatmap({ beatmap_id: beatmap_id, limit: 1, mode: mode })
+            let creator_user = await fx.osu.api.get_profile({ name: map[0].creator, mode: mode, ver: 1 })
+            let parser = await fx.osu.precalc({ beatmap_id: beatmap_id });
+            let embed = fx.osu.ui.beatmap({
+                map: map[0], parser: parser, mode: mode, mod_num: mod_num, mod_text: mod_text,
+                creator_user: creator_user, embed_color: embed_color
+            })
+            message.channel.send({ embeds: [embed] });
         }
     } catch (err) {
-        message.channel.send(error_report({type: 'normal', err_message: err.stack.toString()}))
+        message.channel.send(error_report({ type: 'normal', err_message: err.stack.toString() }))
     }
 }
 
 /** 
  * @param {{message: Message}} 
  */
-async function beatmap_link_detection({message, embed_color, refresh, lang, prefix}) {
+async function beatmap_link_detection({ message, embed_color, refresh, lang, prefix }) {
     let msg = message.cleanContent.toLowerCase()
     let command = msg.split(' ')[0]
-    if (fx.general.cmd_cooldown.cooldown[message.author.id] !== undefined && fx.general.cmd_cooldown.cooldown[message.author.id].indexOf(command) !== -1) {
-        message.channel.send(error_report({type: 'custom', err_message: 'You need to wait 3 seconds before using this again!'}))
+    if(msg.split(' ').length > 4) {
         return;
     }
-    fx.general.cmd_cooldown.set({message: message, cmd: command, time: 3000})
+    if (fx.general.cmd_cooldown.cooldown[message.author.id] !== undefined && fx.general.cmd_cooldown.cooldown[message.author.id].indexOf(command) !== -1) {
+        message.channel.send(error_report({ type: 'custom', err_message: 'You need to wait 3 seconds before using this again!' }))
+        return;
+    }
+    fx.general.cmd_cooldown.set({ message: message, cmd: command, time: 3000 })
     let beatmap_id;
+    let mode_definition;
     let mode = 'bancho-';
     if (msg.startsWith("https://osu.ppy.sh/b/")) {
         let a_mode_list = ['std', 'taiko', 'ctb', 'mania']
         let args = msg.split('/')[4].split(' ')[0].split('?')
         beatmap_id = args[0]
-        mode += args[1] ? a_mode_list[args[1].substr(-1)] : 'std'
+        mode += args[1] ? (isNaN(args[1]) ? args[1] : a_mode_list[Number(args[1])]) : 'std'
+        mode_definition = args[1] ? a_mode_list[args[1].substr(-1)] : 'without';
     } else if (msg.startsWith("https://osu.ppy.sh/beatmapsets/")) {
-        let a_mode_list = {"osu": "std", "taiko": "taiko",
-                            "fruits": "ctb", "mania": "mania"}
+        let a_mode_list = {
+            "osu": "std", "taiko": "taiko",
+            "fruits": "ctb", "mania": "mania"
+        }
         let args = msg.split('#')[1].split('/')
         beatmap_id = args[1].split(" ")[0]
         mode += a_mode_list[args[0]]
     }
     let link = msg.split(' ').find(l => l.includes("https://osu.ppy.sh/")).toString().replace(',', '')
-    let suffix = fx.general.check_suffix({check_msg: msg, two_arg: false, 
-                                        suffix: [{"suffix": link, v_count: 0}]})
+    let suffix = fx.general.check_suffix({
+        check_msg: msg, two_arg: false,
+        suffix: [{ "suffix": link, v_count: 0 }]
+    })
     let mods = suffix.check ? suffix.check.replace('+', '') : 'NM';
-    let {modenum} = fx.osu.get_mode_detail({mode: mode})
-    let {mod_num, mod_text} = fx.osu.mods_enum({mod: mods})
-    cache_beatmap_ID({message: message, beatmap_id: beatmap_id, mode: mode})
-    let map = await fx.osu.api.get_beatmap({beatmap_id: beatmap_id, limit: 1, mode: mode})
-    let creator_user = await fx.osu.api.get_profile({name: map[0].creator, mode: mode, ver: 1})
-    let parser = (modenum == 0) ? await fx.osu.precalc({beatmap_id: beatmap_id}) : ''
-    let embed = fx.osu.ui.beatmap({map: map[0], parser: parser, mode: mode, mod_num: mod_num, mod_text: mod_text,
-                                    creator_user: creator_user, embed_color: embed_color})
-    message.channel.send({embed});
+    mods = isNaN(mods) ? mods : 'NM';
+    let { modenum } = fx.osu.get_mode_detail({ mode: mode })
+    let { mod_num, mod_text } = fx.osu.mods_enum({ mod: mods })
+    cache_beatmap_ID({ message: message, beatmap_id: beatmap_id, mode: mode })
+    let map = await fx.osu.api.get_beatmap({ beatmap_id: beatmap_id, limit: 1, mode: mode, command: mode_definition })
+    let creator_user = await fx.osu.api.get_profile({ name: map[0].creator, mode: mode, ver: 1 })
+    let parser = await fx.osu.precalc({ beatmap_id: beatmap_id });
+    let a_mode_list = ['std', 'taiko', 'ctb', 'mania']
+    mode = mode_definition == 'without' ? "bancho-" + a_mode_list[parser.map.mode] : mode;
+    let embed = fx.osu.ui.beatmap({
+        map: map[0], parser: parser, mode: mode, mod_num: mod_num, mod_text: mod_text,
+        creator_user: creator_user, embed_color: embed_color
+    })
+    message.channel.send({ embeds: [embed] });
 }
 
 /** 
  * @param {{message: Message}} 
  */
-async function osuset({message, embed_color, refresh, lang, prefix}) {
+async function osuset({ message, embed_color, refresh, lang, prefix }) {
     try {
         // New
         let msg = message.content.toLowerCase();
         let command = msg.split(' ')[0]
         if (fx.general.cmd_cooldown.cooldown[message.author.id] !== undefined && fx.general.cmd_cooldown.cooldown[message.author.id].indexOf(command) !== -1) {
-            message.channel.send(error_report({type: 'custom', err_message: 'You need to wait 5 seconds before using this again!'}))
+            message.channel.send(error_report({ type: 'custom', err_message: 'You need to wait 5 seconds before using this again!' }))
             return;
         }
-        fx.general.cmd_cooldown.set({message: message, cmd: command, time: 5000})
+        fx.general.cmd_cooldown.set({ message: message, cmd: command, time: 5000 })
         let sync_db_value = {
             type: undefined,
             name: undefined,
@@ -1020,16 +1321,16 @@ async function osuset({message, embed_color, refresh, lang, prefix}) {
             user_id: message.author.id,
             proc_id: process.env.PROCESS_ID
         }
-        let suffix = fx.general.check_suffix({check_msg: msg, two_arg: false, suffix: check_server_suffix})
+        let suffix = fx.general.check_suffix({ check_msg: msg, two_arg: false, suffix: check_server_suffix })
         // Set the correct mode
-        let mode = set_mode({suffix: suffix, a_mode : 'std'})
+        let mode = set_mode({ suffix: suffix, a_mode: 'std' })
         //
-        let {check_type} = fx.osu.get_mode_detail({mode: mode})
-        let user = await fx.osu.api.get_profile({name: suffix.check, mode: mode, ver: 1})
+        let { check_type } = fx.osu.get_mode_detail({ mode: mode })
+        let user = await fx.osu.api.get_profile({ name: suffix.check, mode: mode, ver: 1 })
         let name = user.username
-        let {profile_link, pfp_link} = fx.osu.get_profile_link({id: user.id, mode: mode, refresh: refresh})
+        let { profile_link, pfp_link } = fx.osu.get_profile_link({ id: user.id, mode: mode, refresh: refresh })
         if (name == undefined) {
-            message.channel.send(error_report({type: 'custom', err_message: 'User not found!'}))
+            message.channel.send(error_report({ type: 'custom', err_message: 'User not found!' }))
         } else {
             if (user_data[message.author.id]) {
                 user_data[message.author.id].name[check_type.toLowerCase()] = name
@@ -1046,59 +1347,65 @@ async function osuset({message, embed_color, refresh, lang, prefix}) {
                 sync_db_value.name = name
             }
             const embed = new MessageEmbed()
-            .setAuthor(`Your account has been linked to ${check_type} username: ${name}`,'', profile_link)
-            .setColor(embed_color)
-            .setImage(pfp_link);
-            message.channel.send({embed})
-            process.send({send_type: "db", cmd: "prefix", value: sync_db_value})
-            if (!config.config.debug.disable_db_save) db.user_data_v5.findAndModify({query: {}, update: user_data}, function(){})
+                .setAuthor({ name: `Your account has been linked to ${check_type} username: ${name}`, url: profile_link })
+                .setColor(embed_color)
+                .setImage(pfp_link);
+            message.channel.send({ embeds: [embed] })
+            process.send({ send_type: "db", cmd: "prefix", value: sync_db_value })
+            if (!config.config.debug.disable_db_save) db.user_data_v5.findAndModify({ query: {}, update: user_data }, function () { })
         }
     } catch (error) {
-        message.channel.send(error_report({type: 'normal', err_message: err}))
+        message.channel.send("User not found!")
     }
 }
 
 /** 
  * @param {{message: Message}} 
  */
-async function osutrack({message, embed_color, refresh, lang, prefix}) {
+async function osutrack({ message, embed_color, refresh, lang, prefix }) {
     try {
-        if (message.member.hasPermission("MANAGE_CHANNELS") == false) {
-            message.channel.send(error_report({type: 'custom', err_message: 'You need to have `Manage Channels` permission to set osutrack'}))
+        //check if message member has permission to manage channels
+        if (!message.member.permissions.has('MANAGE_CHANNELS')) {
+            message.channel.send(error_report({ type: 'custom', err_message: 'You need to have `Manage Channels` permission to set osutrack' }))
             return;
         }
         let msg = message.content.toLowerCase();
         let command = msg.split(' ')[0]
         if (fx.general.cmd_cooldown.cooldown[message.author.id] !== undefined && fx.general.cmd_cooldown.cooldown[message.author.id].indexOf(command) !== -1) {
-            message.channel.send(error_report({type: 'custom', err_message: 'You need to wait 10 seconds before using this again!'}))
+            message.channel.send(error_report({ type: 'custom', err_message: 'You need to wait 10 seconds before using this again!' }))
             return;
         }
-        fx.general.cmd_cooldown.set({message: message, cmd: command, time: 10000})
-        let suffix = fx.general.check_suffix({check_msg: msg, two_arg: true, suffix: [...check_mode_suffix,
-                                                                                    ...check_server_suffix,
-                                                                                    {"suffix": "-p", "v_count": 1}]})
+        fx.general.cmd_cooldown.set({ message: message, cmd: command, time: 10000 })
+        let suffix = fx.general.check_suffix({
+            check_msg: msg, two_arg: true, suffix: [...check_mode_suffix,
+            ...check_server_suffix,
+            { "suffix": "-p", "v_count": 1 }]
+        })
         // Set the correct mode
-        let mode = set_mode({suffix: suffix})
+        let mode = set_mode({ suffix: suffix })
         let limit = 50
         if (suffix['-p']) limit = suffix['-p'][0]
         if (limit > 100 || limit < 1) {
-            message.channel.send(error_report({type: 'custom', err_message: 'You can only set from top 1-100. Please try again'}))
+            message.channel.send(error_report({ type: 'custom', err_message: 'You can only set from top 1-100. Please try again' }))
         }
         if (String(limit).search(/^\d+$/) < 0) {
-            message.channel.send(error_report({type: 'custom', err_message: 'You can only set top as a numeric value. Please try again'}))
+            message.channel.send(error_report({ type: 'custom', err_message: 'You can only set top as a numeric value. Please try again' }))
         }
-        let {modename, check_type} = fx.osu.get_mode_detail({mode: mode})
-        let user = await fx.osu.api.get_profile({name: suffix.check, mode: mode, ver: 1})
-        if (!user) message.channel.send(error_report({type: 'custom', err_message: 'Please enter a valid username!'}))
-        process.send({send_type: "osutrack", cmd: `add-${process.env.PROCESS_ID}-${user.id}-${message.channel.id}`, 
-                        value: {channel_id: message.channel.id,
-                                mode: mode,
-                                limit: limit,
-                                check_type: check_type,
-                                user: user,
-                                proc_id: process.env.PROCESS_ID
-                                }})
-        let {added, error} = await new Promise(resolve => {
+        let { modename, check_type } = fx.osu.get_mode_detail({ mode: mode })
+        let user = await fx.osu.api.get_profile({ name: suffix.check, mode: mode, ver: 1 })
+        if (!user) message.channel.send(error_report({ type: 'custom', err_message: 'Please enter a valid username!' }))
+        process.send({
+            send_type: "osutrack", cmd: `add-${process.env.PROCESS_ID}-${user.id}-${message.channel.id}`,
+            value: {
+                channel_id: message.channel.id,
+                mode: mode,
+                limit: limit,
+                check_type: check_type,
+                user: user,
+                proc_id: process.env.PROCESS_ID
+            }
+        })
+        let { added, error } = await new Promise(resolve => {
             process.on('message', (proc_msg) => {
                 if (proc_msg.cmd == `add-${process.env.PROCESS_ID}-${user.id}-${message.channel.id}`) {
                     resolve(proc_msg.value)
@@ -1108,52 +1415,58 @@ async function osutrack({message, embed_color, refresh, lang, prefix}) {
         if (added) {
             message.channel.send(`**${user.username}** is now being tracked on **#${message.channel.name}**\n\`mode\`: ${modename}\n\`top\`: ${limit}`)
         } else {
-            message.channel.send(error_report({type: 'normal', err_message: error}))
+            message.channel.send(error_report({ type: 'normal', err_message: error }))
         }
     } catch (err) {
-        message.channel.send(error_report({type: 'normal', err_message: err}))
+        message.channel.send(error_report({ type: 'normal', err_message: err }))
+        await error_send({ message: message, e: err });
     }
 }
 
 /** 
  * @param {{message: Message}} 
  */
-async function untrack({message, embed_color, refresh, lang, prefix}) {
+async function untrack({ message, embed_color, refresh, lang, prefix }) {
     try {
-        if (message.member.hasPermission("MANAGE_CHANNELS") == false) {
-            message.channel.send(error_report({type: 'custom', err_message: 'You need to have `Manage Channels` permission to untrack'}))
+        if (!message.member.permissions.has('MANAGE_CHANNELS')) {
+            message.channel.send(error_report({ type: 'custom', err_message: 'You need to have `Manage Channels` permission to untrack' }))
             return;
         }
         let msg = message.content.toLowerCase();
         let command = msg.split(' ')[0]
         if (fx.general.cmd_cooldown.cooldown[message.author.id] !== undefined && fx.general.cmd_cooldown.cooldown[message.author.id].indexOf(command) !== -1) {
-            message.channel.send(error_report({type: 'custom', err_message: 'You need to wait 10 seconds before using this again!'}))
+            message.channel.send(error_report({ type: 'custom', err_message: 'You need to wait 10 seconds before using this again!' }))
             return;
         }
-        fx.general.cmd_cooldown.set({message: message, cmd: command, time: 10000})
-        let suffix = fx.general.check_suffix({check_msg: msg, two_arg: false, suffix: [...check_server_suffix,
-                                                                                        {"suffix": "-on", "v_count": 0},
-                                                                                        {"suffix": "-all", "v_count": 0}]})
+        fx.general.cmd_cooldown.set({ message: message, cmd: command, time: 10000 })
+        let suffix = fx.general.check_suffix({
+            check_msg: msg, two_arg: false, suffix: [...check_server_suffix,
+            { "suffix": "-on", "v_count": 0 },
+            { "suffix": "-all", "v_count": 0 }]
+        })
         // Set the correct mode
-        let mode = set_mode({suffix: suffix, a_mode : 'std'})
-        let {check_type} = fx.osu.get_mode_detail({mode: mode})
+        let mode = set_mode({ suffix: suffix, a_mode: 'std' })
+        let { check_type } = fx.osu.get_mode_detail({ mode: mode })
         let name = ''
-        if (suffix["-on"])  name = suffix.check;
-        else { 
-            let user = await fx.osu.api.get_profile({name: suffix.check, mode: mode, ver: 1})
+        if (suffix["-on"]) name = suffix.check;
+        else {
+            let user = await fx.osu.api.get_profile({ name: suffix.check, mode: mode, ver: 1 })
             name = user.username
         }
         if (name == undefined)
-            message.channel.send(error_report({type: 'custom', err_message: 'Please enter a valid osu username! >:c'}))
-        process.send({send_type: "osutrack", cmd: `remove-${process.env.PROCESS_ID}-${name}-${message.channel.id}`, 
-                    value: {channel_id: message.channel.id,
-                            mode: mode,
-                            check_type: check_type,
-                            name: name,
-                            suffix: suffix,
-                            proc_id: process.env.PROCESS_ID
-                            }})
-        let {removed, error} = await new Promise(resolve => {
+            message.channel.send(error_report({ type: 'custom', err_message: 'Please enter a valid osu username! >:c' }))
+        process.send({
+            send_type: "osutrack", cmd: `remove-${process.env.PROCESS_ID}-${name}-${message.channel.id}`,
+            value: {
+                channel_id: message.channel.id,
+                mode: mode,
+                check_type: check_type,
+                name: name,
+                suffix: suffix,
+                proc_id: process.env.PROCESS_ID
+            }
+        })
+        let { removed, error } = await new Promise(resolve => {
             process.on('message', (proc_msg) => {
                 if (proc_msg.cmd == `remove-${process.env.PROCESS_ID}-${name}-${message.channel.id}`) {
                     resolve(proc_msg.value)
@@ -1163,25 +1476,28 @@ async function untrack({message, embed_color, refresh, lang, prefix}) {
         if (removed) {
             message.channel.send(`**${name}** (${check_type}) has been removed from #${message.channel.name}`)
         } else if (error == 'not found') {
-            message.channel.send(error_report({type: 'custom', err_message: `**${name}** (${check_type}) not found in the tracking database`}))
+            message.channel.send(error_report({ type: 'custom', err_message: `**${name}** (${check_type}) not found in the tracking database` }))
         } else {
-            message.channel.send(error_report({type: 'custom', err_message: `Something went wrong please try again`}))
+            message.channel.send(error_report({ type: 'custom', err_message: `Something went wrong please try again` }))
         }
     } catch (error) {
-        message.channel.send(error_report({type: 'normal', err_message: err}))
+        message.channel.send(error_report({ type: 'normal', err_message: error }))
+        await error_send({ message: message, e: error });
     }
 }
 
 /** 
  * @param {{message: Message}} 
  */
-async function osutracklist({message, embed_color, refresh, lang, prefix}) {
-    let value = process.send({send_type: "osutrack", cmd: `list-${process.env.PROCESS_ID}-${message.channel.id}`, 
-                            value: {
-                                    channel_id: message.channel.id,
-                                    proc_id: process.env.PROCESS_ID
-                                    }})
-    let {players, error} = await new Promise(resolve => {
+async function osutracklist({ message, embed_color, refresh, lang, prefix }) {
+    let value = process.send({
+        send_type: "osutrack", cmd: `list-${process.env.PROCESS_ID}-${message.channel.id}`,
+        value: {
+            channel_id: message.channel.id,
+            proc_id: process.env.PROCESS_ID
+        }
+    })
+    let { players, error } = await new Promise(resolve => {
         process.on('message', (proc_msg) => {
             if (proc_msg.cmd == `list-${process.env.PROCESS_ID}-${message.channel.id}`) {
                 resolve(proc_msg.value)
@@ -1189,12 +1505,12 @@ async function osutracklist({message, embed_color, refresh, lang, prefix}) {
         })
     })
     if (error) {
-        message.channel.send(error_report({type: 'custom', err_message: 'No player found in the database'}))
+        message.channel.send(error_report({ type: 'custom', err_message: 'No player found in the database' }))
     }
-    let load_page = async function ({page}) {
+    let load_page = async function ({ page }) {
         let gathering = ''
         for (let n = 0; n < 15; n++) {
-            let i = (page - 1) * 15 - 1 + (n+1)
+            let i = (page - 1) * 15 - 1 + (n + 1)
             if (i < players.length) {
                 gathering += players[i]
             }
@@ -1202,12 +1518,14 @@ async function osutracklist({message, embed_color, refresh, lang, prefix}) {
         return gathering
     }
     const embed = new MessageEmbed()
-    .setTitle(`Player(s) currently being tracked on #${message.channel.name}`)
-    .setThumbnail(message.guild.iconURL({format: 'png', size: 512}))
-    .setColor(embed_color)
-    .setFooter(`{page}`)
-    fx.general.page_system({message: message, embed: embed, update_func: load_page,
-                            max_duration: Math.ceil(players.length / 15) * 30000, max_page: Math.ceil(players.length / 15)})
+        .setTitle(`Player(s) currently being tracked on #${message.channel.name}`)
+        .setThumbnail(message.guild.iconURL({ format: 'png', size: 512 }))
+        .setColor(embed_color)
+        .setFooter({ text: `{page}` })
+    fx.general.page_system({
+        message: message, embed: embed, update_func: load_page,
+        max_duration: Math.ceil(players.length / 15) * 30000, max_page: Math.ceil(players.length / 15)
+    })
 }
 module.exports = {
     osuavatar,

@@ -1,8 +1,7 @@
 node_modules
-test
-beatmap-cache
-.env
 package-lock.json
-.VSCodeCounter
-run.cmd
-mod_enum.txt
+osu_card/card_mask.png
+osu_card/mask.png
+osu_card/cover_mask.png
+osu_card/card-v6
+Commands/osu-v6.js
